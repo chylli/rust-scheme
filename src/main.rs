@@ -37,15 +37,14 @@ fn tokenize(s: &str) -> Vec<Token> {
                     ')' => tokens.push(Token::CloseParen),
                     '+' => tokens.push(Token::Identifier(c.to_string())),
                     '0'... '9' => {
-                        let extra_chars: String = iter.by_ref().take_while(|cc| cc.is_digit(10)).collect();
                         let mut chars = c.to_string();
-                        chars.push_str(&extra_chars);
-                        let val = chars.parse::<i32>().unwrap();
+                        iter.by_ref().take_while(|c| c.is_digit(10)).for_each(|c| chars.push(c));
+                        let val: i32 = chars.parse().unwrap();
 
                         tokens.push(Token::Integer(val))
                     },
                     ' ' => (),
-                    _   => println!("other"),
+                    _   => println!("unexpected character: {}", c),
                 },
             None =>
                 return tokens
