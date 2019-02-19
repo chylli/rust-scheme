@@ -1,3 +1,6 @@
+use std::fmt;
+use self::Token::*;
+
 fn main() {
     run("(+ 21 325)");
 }
@@ -15,13 +18,13 @@ enum Token {
     Integer(i32),
 }
 
-impl std::fmt::Debug for Token {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl fmt::Debug for Token {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Token::OpenParen => write!(f, "OpenParen"),
-            Token::CloseParen => write!(f, "CloseParen"),
-            Token::Identifier(ref v) => write!(f, "Identifier({})", v),
-            Token::Integer(ref v) => write!(f, "Integer({})", v),
+            OpenParen => write!(f, "OpenParen"),
+            CloseParen => write!(f, "CloseParen"),
+            Identifier(ref v) => write!(f, "Identifier({})", v),
+            Integer(ref v) => write!(f, "Integer({})", v),
         }
     }
 }
@@ -33,15 +36,15 @@ fn tokenize(s: &str) -> Vec<Token> {
         match iter.next() {
             Some(c) =>
                 match c {
-                    '(' => tokens.push(Token::OpenParen),
-                    ')' => tokens.push(Token::CloseParen),
-                    '+' => tokens.push(Token::Identifier(c.to_string())),
+                    '(' => tokens.push(OpenParen),
+                    ')' => tokens.push(CloseParen),
+                    '+' => tokens.push(Identifier(c.to_string())),
                     '0'... '9' => {
                         let mut chars = c.to_string();
                         iter.by_ref().take_while(|c| c.is_digit(10)).for_each(|c| chars.push(c));
                         let val: i32 = chars.parse().unwrap();
 
-                        tokens.push(Token::Integer(val))
+                        tokens.push(Integer(val))
                     },
                     ' ' => (),
                     _   => println!("unexpected character: {}", c),
