@@ -1,9 +1,8 @@
-use std::fmt;
 use std::str;
 use self::Token::*;
 
 fn main() {
-    run("(+ 21 325)");
+    run("(+ 2 3)");
 }
 
 fn run(s: &str) {
@@ -12,22 +11,12 @@ fn run(s: &str) {
     println!("tokens: {:?}", tokens);
 }
 
+#[derive(PartialEq, Debug)]
 enum Token {
     OpenParen,
     CloseParen,
     Identifier(String),
     Integer(i32),
-}
-
-impl fmt::Debug for Token {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            OpenParen => write!(f, "OpenParen"),
-            CloseParen => write!(f, "CloseParen"),
-            Identifier(ref v) => write!(f, "Identifier({})", v),
-            Integer(ref v) => write!(f, "Integer({})", v),
-        }
-    }
 }
 
 struct Lexer<'a> {
@@ -116,5 +105,23 @@ impl<'a> Lexer<'a> {
         }
         s.parse().unwrap()
     }
+}
+
+#[test]
+fn test_simple_lexing() {
+    assert_eq!(Lexer::tokenize("(+ 2 3)"),
+               vec![OpenParen, Identifier("+".to_string()), Integer(2), Integer(3), CloseParen]);
+}
+
+#[test]
+fn test_multi_digit_integers() {
+    assert_eq!(Lexer::tokenize("(+ 21 325)"),
+               vec![OpenParen, Identifier("+".to_string()), Integer(21), Integer(325), CloseParen]);
+}
+
+#[test]
+fn test_subtraction(){
+    assert_eq!(Lexer::tokenize("(+ -8 +2 -33)"),
+               vec![OpenParen, Identifier("+".to_string()), Integer(-8), Integer(2), Integer(-33), CloseParen]);
 }
 
