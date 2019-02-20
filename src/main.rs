@@ -31,20 +31,27 @@ impl fmt::Debug for Token {
 }
 
 struct Lexer<'a> {
-    chars: str::Chars<'a>,
+    chars: std::iter::Peekable<str::Chars<'a>>,
     current: Option<char>,
     tokens: Vec<Token>,
 }
 
 impl<'a> Lexer<'a> {
     fn tokenize(s: &str) -> Vec<Token> {
-        let mut lexer = Lexer { chars: s.chars(), current: None, tokens: Vec::new()};
+        let mut lexer = Lexer { chars: s.chars().peekable(), current: None, tokens: Vec::new()};
         lexer.run();
         lexer.tokens
     }
 
     fn current(&self) -> Option<char> {
         self.current
+    }
+
+    fn peek(&mut self) -> Option<char> {
+        match self.chars.peek() {
+            Some(c) => Some (*c),
+            None => None,
+        }
     }
 
     fn advance(&mut self) {
@@ -65,9 +72,18 @@ impl<'a> Lexer<'a> {
                             self.tokens.push(CloseParen);
                             self.advance();
                         },
-                        '+' => {
-                            self.tokens.push(Identifier(c.to_string()));
-                            self.advance();
+                        '+' | '-' => {
+                            match self.peek() {
+                                Some('0'...'9') => {
+                                    self.advance();
+                                    let val = self.parse_number();
+                                    self.tokens.push(Integer(if c == '-'{ -1 * val} else { val }))
+                                },
+                                _ => {
+                                    self.tokens.push(Identifier(c.to_string()));
+                                    self.advance();
+                                }
+                            }
                         },
                         '0' ... '9' => {
                             let val = self.parse_number();
