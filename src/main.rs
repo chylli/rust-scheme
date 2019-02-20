@@ -16,7 +16,7 @@ enum Token {
     OpenParen,
     CloseParen,
     Identifier(String),
-    Integer(i32),
+    Integer(i64),
 }
 
 struct Lexer<'a> {
@@ -36,15 +36,15 @@ impl<'a> Lexer<'a> {
         self.current
     }
 
+    fn advance(&mut self) {
+        self.current = self.chars.next()
+    }
+
     fn peek(&mut self) -> Option<char> {
         match self.chars.peek() {
             Some(c) => Some (*c),
             None => None
         }
-    }
-
-    fn advance(&mut self) {
-        self.current = self.chars.next()
     }
 
     fn run(&mut self) -> Result<(), &'static str> {
@@ -94,7 +94,7 @@ impl<'a> Lexer<'a> {
         Ok(())
     }
 
-    fn parse_number(&mut self) -> Result<i32, &'static str> {
+    fn parse_number(&mut self) -> Result<i64, &'static str> {
         let mut s = String::new();
         loop {
             match self.current() {
@@ -150,6 +150,12 @@ fn test_subtraction(){
 }
 
 #[test]
+fn test_negative_integers() {
+    assert_eq!(Lexer::tokenize("(+ -8 +2 -33)").unwrap(),
+               vec![OpenParen, Identifier("+".to_string()), Integer(-8), Integer(2), Integer(-33), CloseParen]);
+}
+
+#[test]
 fn test_bad_syntax() {
     assert!(Lexer::tokenize("(&&)").is_err())
 }
@@ -159,5 +165,4 @@ fn test_terminor_checking() {
     assert!(Lexer::tokenize("(+-)").is_err());
     assert!(Lexer::tokenize("(-22+)").is_err());
     assert!(Lexer::tokenize("(22+)").is_err());
-        
 }
