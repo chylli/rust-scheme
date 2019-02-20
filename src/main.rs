@@ -39,7 +39,7 @@ impl<'a> Lexer<'a> {
     fn peek(&mut self) -> Option<char> {
         match self.chars.peek() {
             Some(c) => Some (*c),
-            None => None,
+            None => None
         }
     }
 
@@ -64,25 +64,28 @@ impl<'a> Lexer<'a> {
                         '+' | '-' => {
                             match self.peek() {
                                 Some('0'...'9') => {
+                                    // skip past the +/- symbol and parse the number
                                     self.advance();
                                     let val = self.parse_number();
-                                    self.tokens.push(Integer(if c == '-'{ -1 * val} else { val }))
+                                    self.tokens.push(Integer(if c == '-'{ -1 * val} else { val }));
                                 },
                                 _ => {
+                                    // not followed by a digit, must be an identifier
                                     self.tokens.push(Identifier(c.to_string()));
                                     self.advance();
                                 }
                             }
                         },
                         '0' ... '9' => {
+                            // don't advance -- let parse_number advance as needed
                             let val = self.parse_number();
-                            self.tokens.push(Integer(val))
+                            self.tokens.push(Integer(val));
                         },
                         ' ' => self.advance(),
                         _   => panic!("unexpected character: {}", c),
                     }
                 },
-                None => return (),
+                None => break
             }
         };
     }
