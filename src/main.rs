@@ -66,20 +66,23 @@ impl<'a> Lexer<'a> {
                                 Some('0'...'9') => {
                                     // skip past the +/- symbol and parse the number
                                     self.advance();
-                                    let val = self.parse_number();
+                                    let val = self.parse_number()?;
                                     self.tokens.push(Integer(if c == '-'{ -1 * val} else { val }));
+                                    self.parse_terminator()?;
                                 },
                                 _ => {
                                     // not followed by a digit, must be an identifier
                                     self.tokens.push(Identifier(c.to_string()));
                                     self.advance();
+                                    self.parse_terminator()?;
                                 }
                             }
                         },
                         '0' ... '9' => {
                             // don't advance -- let parse_number advance as needed
-                            let val = self.parse_number();
+                            let val = self.parse_number()?;
                             self.tokens.push(Integer(val));
+                            self.parse_terminator()?;
                         },
                         ' ' => self.advance(),
                         _   => return Err("unexpected character"),
@@ -91,7 +94,7 @@ impl<'a> Lexer<'a> {
         Ok(())
     }
 
-    fn parse_number(&mut self) -> i32 {
+    fn parse_number(&mut self) -> Result<i32, &'static str> {
         let mut s = String::new();
         loop {
             match self.current() {
@@ -107,7 +110,24 @@ impl<'a> Lexer<'a> {
                 None => break
             }
         }
-        s.parse().unwrap()
+        Ok(s.parse().unwrap())
+    }
+
+    fn parse_terminator(&mut self) -> Result<(), &'static str> {
+        match self.current() {
+            Some(c) => {
+                match c {
+                    ')' => {
+                        self.tokens.push(CloseParen);
+                        self.advance();
+                    }
+                    ' ' => (),
+                    _ => return Err("unexpected character"),
+                }
+            },
+            None => ()
+        };
+        Ok(())
     }
 }
 
@@ -132,4 +152,12 @@ fn test_subtraction(){
 #[test]
 fn test_bad_syntax() {
     assert!(Lexer::tokenize("(&&)").is_err())
+}
+
+#[test]
+fn test_terminor_checking() {
+    assert!(Lexer::tokenize("(+-)").is_err());
+    assert!(Lexer::tokenize("(-22+)").is_err());
+    assert!(Lexer::tokenize("(22+)").is_err());
+        
 }
