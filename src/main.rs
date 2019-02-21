@@ -3,12 +3,19 @@ use self::Token::*;
 
 fn main() {
     run("(+ 2 3)");
+    run("(22+)");
 }
 
 fn run(s: &str) {
     println!("str: \"{}\"", s);
     let tokens = Lexer::tokenize(s);
     println!("tokens: {:?}", tokens);
+}
+
+macro_rules! parse_error {
+    ($($arg:tt)*) => (
+        return Err(ParseError {message: format!($($arg)*)})
+    )
 }
 
 #[derive(PartialEq, Debug)]
@@ -90,7 +97,7 @@ impl<'a> Lexer<'a> {
                             self.parse_terminator()?;
                         },
                         ' ' => self.advance(),
-                        _   => return Err(ParseError {message: format!("unexpected character: {}", c)}),
+                        _   => parse_error!("unexpected character: {}", c),
                     }
                 },
                 None => break
@@ -127,7 +134,7 @@ impl<'a> Lexer<'a> {
                         self.advance();
                     }
                     ' ' => (),
-                    _ => return Err(ParseError {message: format!("unexpected character when looking for a terminator: {}", c)}),
+                    _ => parse_error!("unexpected character when looking for a terminator: {}", c),
                 }
             },
             None => ()
