@@ -1,4 +1,5 @@
 use std::str;
+use std::fmt;
 use self::Token::*;
 
 fn main() {
@@ -26,9 +27,16 @@ enum Token {
     Integer(i64),
 }
 
-#[derive(Debug)]
 struct ParseError {
     message: String,
+}
+
+// it should be Display, but Vec has no display, so the token cannot
+// be displayed with it. So use Debug temporarily.
+impl fmt::Debug for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "ParseError: {}", self.message)
+    }
 }
 
 struct Lexer<'a> {
