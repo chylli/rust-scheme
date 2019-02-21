@@ -25,6 +25,7 @@ enum Token {
     CloseParen,
     Identifier(String),
     Integer(i64),
+    Boolean(bool),
 }
 
 #[derive(Debug)]
@@ -107,6 +108,11 @@ impl<'a> Lexer<'a> {
                                 }
                             }
                         },
+                        '#' => {
+                            let val = self.parse_boolean()?;
+                            self.tokens.push(Boolean(val));
+                            self.parse_delimiter()?;
+                        }
                         'A' ... 'Z' | 'a' ... 'z' | '!' | '$' | '%' | '&' | '*' | '/' | ':' | '<'  | '=' | '>' | '?' | '_' | '^' => {
                             let val = self.parse_identifier()?;
                             self.tokens.push(Identifier(val));
@@ -145,6 +151,25 @@ impl<'a> Lexer<'a> {
             }
         }
         Ok(s.parse().unwrap())
+    }
+
+    fn parse_boolean(&mut self) -> Result<bool, ParseError> {
+        //if self.current() != Some('#') { parse_error!(self, "Unexecpted character: {}", self.current())};
+        self.advance();
+        match self.current() {
+            Some('t') => {
+                self.advance();
+                Ok(true)
+            },
+            Some('f') => {
+                self.advance();
+                Ok(false)
+            },
+            Some(c) => parse_error!(self, "Unexpected character when looking for t/f: {}", c)
+            ,
+            _ => parse_error!(self, "Unexpected end of file when looking for t/f")
+
+        }
     }
 
     fn parse_identifier(&mut self) -> Result<String, ParseError> {
@@ -207,6 +232,19 @@ fn test_subtraction(){
 fn test_negative_integers() {
     assert_eq!(Lexer::tokenize("(+ -8 +2 -33)").unwrap(),
                vec![OpenParen, Identifier("+".to_string()), Integer(-8), Integer(2), Integer(-33), CloseParen]);
+}
+
+#[test]
+fn test_booleans() {
+    assert_eq!(Lexer::tokenize("#t").unwrap(),
+               vec![Boolean(true)]);
+    assert_eq!(Lexer::tokenize("#f").unwrap(),
+               vec![Boolean(false)]);
+    assert_eq!(Lexer::tokenize("#").err().unwrap().to_string(),
+               "ParseError: Unexpected end of file when looking for t/f (line: 1, column: 2)");
+    assert_eq!(Lexer::tokenize("#a").err().unwrap().to_string(),
+               "ParseError: Unexpected character when looking for t/f: a (line: 1, column: 2)");
+
 }
 
 #[test]
