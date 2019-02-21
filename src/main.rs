@@ -1,6 +1,5 @@
 use std::str;
 use std::fmt;
-use self::Token::*;
 
 fn main() {
     run("(+ 2 3)");
@@ -26,6 +25,7 @@ enum Token {
     Identifier(String),
     Integer(i64),
     Boolean(bool),
+    String(String),
 }
 
 #[derive(Debug)]
@@ -84,11 +84,11 @@ impl<'a> Lexer<'a> {
                 Some(c) => {
                     match c {
                         '(' => {
-                            self.tokens.push(OpenParen);
+                            self.tokens.push(Token::OpenParen);
                             self.advance();
                         },
                         ')' => {
-                            self.tokens.push(CloseParen);
+                            self.tokens.push(Token::CloseParen);
                             self.advance();
                         },
                         '+' | '-' => {
@@ -97,12 +97,12 @@ impl<'a> Lexer<'a> {
                                     // skip past the +/- symbol and parse the number
                                     self.advance();
                                     let val = self.parse_number()?;
-                                    self.tokens.push(Integer(if c == '-'{ -1 * val} else { val }));
+                                    self.tokens.push(Token::Integer(if c == '-'{ -1 * val} else { val }));
                                     self.parse_delimiter()?;
                                 },
                                 _ => {
                                     // not followed by a digit, must be an identifier
-                                    self.tokens.push(Identifier(c.to_string()));
+                                    self.tokens.push(Token::Identifier(c.to_string()));
                                     self.advance();
                                     self.parse_delimiter()?;
                                 }
@@ -110,20 +110,25 @@ impl<'a> Lexer<'a> {
                         },
                         '#' => {
                             let val = self.parse_boolean()?;
-                            self.tokens.push(Boolean(val));
+                            self.tokens.push(Token::Boolean(val));
                             self.parse_delimiter()?;
                         }
                         'A' ... 'Z' | 'a' ... 'z' | '!' | '$' | '%' | '&' | '*' | '/' | ':' | '<'  | '=' | '>' | '?' | '_' | '^' => {
                             let val = self.parse_identifier()?;
-                            self.tokens.push(Identifier(val));
+                            self.tokens.push(Token::Identifier(val));
                             self.parse_delimiter()?;
                         },
                         '0' ... '9' => {
                             // don't advance -- let parse_number advance as needed
                             let val = self.parse_number()?;
-                            self.tokens.push(Integer(val));
+                            self.tokens.push(Token::Integer(val));
                             self.parse_delimiter()?;
                         },
+                        '\"' => {
+                            let val = self.parse_string()?;
+                            self.tokens.push(Token::String(val));
+                            self.parse_delimiter()?;
+                        }
                         ' ' | '\x09' | '\x0a' | '\x0d' => self.advance(),
                         _   => parse_error!(self, "Unexpected character: {}", c),
                     }
@@ -167,7 +172,7 @@ impl<'a> Lexer<'a> {
             },
             Some(c) => parse_error!(self, "Unexpected character when looking for t/f: {}", c)
             ,
-            _ => parse_error!(self, "Unexpected end of file when looking for t/f")
+            _ => parse_error!(self, "Unexpected EOF when looking for t/f")
 
         }
     }
@@ -192,12 +197,37 @@ impl<'a> Lexer<'a> {
         Ok(s)
     }
 
+    fn parse_string(&mut self) -> Result<String, ParseError> {
+        //if self.current() != Some('\"') {parse_error!(self, "Unexpected character: {}", self.current())}
+        self.advance();
+
+        let mut s = String::new();
+        loop {
+            match self.current() {
+                Some(c) => {
+                    match c {
+                        '\"' => {
+                            self.advance();
+                            break;
+                        },
+                        _ => {
+                            s.push(c);
+                            self.advance();
+                        }
+                    }
+                },
+                None => parse_error!(self, "Expected end quote, but found EOF instead")
+            }
+        }
+        Ok(s)
+    }
+
     fn parse_delimiter(&mut self) -> Result<(), ParseError> {
         match self.current() {
             Some(c) => {
                 match c {
                     ')' => {
-                        self.tokens.push(CloseParen);
+                        self.tokens.push(Token::CloseParen);
                         self.advance();
                     }
                     ' ' | '\x09' | '\x0a' | '\x0d' => (),
@@ -213,35 +243,35 @@ impl<'a> Lexer<'a> {
 #[test]
 fn test_simple_lexing() {
     assert_eq!(Lexer::tokenize("(+ 2 3)").unwrap(),
-               vec![OpenParen, Identifier("+".to_string()), Integer(2), Integer(3), CloseParen]);
+               vec![Token::OpenParen, Token::Identifier("+".to_string()), Token::Integer(2), Token::Integer(3), Token::CloseParen]);
 }
 
 #[test]
 fn test_multi_digit_integers() {
     assert_eq!(Lexer::tokenize("(+ 21 325)").unwrap(),
-               vec![OpenParen, Identifier("+".to_string()), Integer(21), Integer(325), CloseParen]);
+               vec![Token::OpenParen, Token::Identifier("+".to_string()), Token::Integer(21), Token::Integer(325), Token::CloseParen]);
 }
 
 #[test]
 fn test_subtraction(){
     assert_eq!(Lexer::tokenize("(+ -8 +2 -33)").unwrap(),
-               vec![OpenParen, Identifier("+".to_string()), Integer(-8), Integer(2), Integer(-33), CloseParen]);
+               vec![Token::OpenParen, Token::Identifier("+".to_string()), Token::Integer(-8), Token::Integer(2), Token::Integer(-33), Token::CloseParen]);
 }
 
 #[test]
 fn test_negative_integers() {
     assert_eq!(Lexer::tokenize("(+ -8 +2 -33)").unwrap(),
-               vec![OpenParen, Identifier("+".to_string()), Integer(-8), Integer(2), Integer(-33), CloseParen]);
+               vec![Token::OpenParen, Token::Identifier("+".to_string()), Token::Integer(-8), Token::Integer(2), Token::Integer(-33), Token::CloseParen]);
 }
 
 #[test]
 fn test_booleans() {
     assert_eq!(Lexer::tokenize("#t").unwrap(),
-               vec![Boolean(true)]);
+               vec![Token::Boolean(true)]);
     assert_eq!(Lexer::tokenize("#f").unwrap(),
-               vec![Boolean(false)]);
+               vec![Token::Boolean(false)]);
     assert_eq!(Lexer::tokenize("#").err().unwrap().to_string(),
-               "ParseError: Unexpected end of file when looking for t/f (line: 1, column: 2)");
+               "ParseError: Unexpected EOF when looking for t/f (line: 1, column: 2)");
     assert_eq!(Lexer::tokenize("#a").err().unwrap().to_string(),
                "ParseError: Unexpected character when looking for t/f: a (line: 1, column: 2)");
 
@@ -251,14 +281,25 @@ fn test_booleans() {
 fn test_identifiers() {
     for identifier in ["*", "<", "<=", "if", "while", "$t$%*=:t059s"].iter(){
         assert_eq!(Lexer::tokenize(*identifier).unwrap(),
-                   vec![Identifier(identifier.to_string())]);
+                   vec![Token::Identifier(identifier.to_string())]);
     }
 }
 
 #[test]
+fn test_strings() {
+    assert_eq!(Lexer::tokenize("\"hello\"").unwrap(),
+               vec![Token::String("hello".to_string())]);
+    assert_eq!(Lexer::tokenize("\"a _ $ snthoeau(*&G#$()*^!\"").unwrap(),
+               vec![Token::String("a _ $ snthoeau(*&G#$()*^!".to_string())]);
+    assert_eq!(Lexer::tokenize("\"truncated").err().unwrap().to_string(),
+               "ParseError: Expected end quote, but found EOF instead (line: 1, column: 11)")
+}
+
+
+#[test]
 fn test_whitespace() {
     assert_eq!(Lexer::tokenize("(+ 1 1)\n(+\n   2\t2 \n )\r\n \n").unwrap(),
-               vec![OpenParen, Identifier("+".to_string()), Integer(1), Integer(1), CloseParen, OpenParen, Identifier("+".to_string()), Integer(2), Integer(2), CloseParen]);
+               vec![Token::OpenParen, Token::Identifier("+".to_string()), Token::Integer(1), Token::Integer(1), Token::CloseParen, Token::OpenParen, Token::Identifier("+".to_string()), Token::Integer(2), Token::Integer(2), Token::CloseParen]);
 }
 
 #[test]
