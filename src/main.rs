@@ -19,6 +19,11 @@ enum Token {
     Integer(i64),
 }
 
+#[derive(Debug)]
+struct ParseError {
+    message: String,
+}
+
 struct Lexer<'a> {
     chars: std::iter::Peekable<str::Chars<'a>>,
     current: Option<char>,
@@ -26,7 +31,7 @@ struct Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
-    fn tokenize(s: &str) -> Result<Vec<Token>, &'static str> {
+    fn tokenize(s: &str) -> Result<Vec<Token>, ParseError> {
         let mut lexer = Lexer { chars: s.chars().peekable(), current: None, tokens: Vec::new()};
         lexer.run()?;
         Ok(lexer.tokens)
@@ -47,7 +52,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn run(&mut self) -> Result<(), &'static str> {
+    fn run(&mut self) -> Result<(), ParseError> {
         self.advance();
         loop {
             match self.current() {
@@ -85,7 +90,7 @@ impl<'a> Lexer<'a> {
                             self.parse_terminator()?;
                         },
                         ' ' => self.advance(),
-                        _   => return Err("unexpected character"),
+                        _   => return Err(ParseError {message: format!("unexpected character: {}", c)}),
                     }
                 },
                 None => break
@@ -94,7 +99,7 @@ impl<'a> Lexer<'a> {
         Ok(())
     }
 
-    fn parse_number(&mut self) -> Result<i64, &'static str> {
+    fn parse_number(&mut self) -> Result<i64, ParseError> {
         let mut s = String::new();
         loop {
             match self.current() {
@@ -113,7 +118,7 @@ impl<'a> Lexer<'a> {
         Ok(s.parse().unwrap())
     }
 
-    fn parse_terminator(&mut self) -> Result<(), &'static str> {
+    fn parse_terminator(&mut self) -> Result<(), ParseError> {
         match self.current() {
             Some(c) => {
                 match c {
@@ -122,7 +127,7 @@ impl<'a> Lexer<'a> {
                         self.advance();
                     }
                     ' ' => (),
-                    _ => return Err("unexpected character"),
+                    _ => return Err(ParseError {message: format!("unexpected character when looking for a terminator: {}", c)}),
                 }
             },
             None => ()
