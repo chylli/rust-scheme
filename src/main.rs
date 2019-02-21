@@ -14,8 +14,8 @@ fn run(s: &str) {
 }
 
 macro_rules! parse_error {
-    ($($arg:tt)*) => (
-        return Err(ParseError {message: format!($($arg)*)})
+    ($lexer:ident, $($arg:tt)*) => (
+        return Err(ParseError {message: format!($($arg)*), line: $lexer.line, column: $lexer.column})
     )
 }
 
@@ -27,15 +27,16 @@ enum Token {
     Integer(i64),
 }
 
+#[derive(Debug)]
 struct ParseError {
     message: String,
+    line: u64,
+    column: u64,
 }
 
-// it should be Display, but Vec has no display, so the token cannot
-// be displayed with it. So use Debug temporarily.
-impl fmt::Debug for ParseError {
+impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ParseError: {}", self.message)
+        write!(f, "ParseError: {} (line: {}, column: {})", self.message, self.line, self.column)
     }
 }
 
@@ -43,11 +44,13 @@ struct Lexer<'a> {
     chars: std::iter::Peekable<str::Chars<'a>>,
     current: Option<char>,
     tokens: Vec<Token>,
+    line: u64,
+    column: u64,
 }
 
 impl<'a> Lexer<'a> {
     fn tokenize(s: &str) -> Result<Vec<Token>, ParseError> {
-        let mut lexer = Lexer { chars: s.chars().peekable(), current: None, tokens: Vec::new()};
+        let mut lexer = Lexer { chars: s.chars().peekable(), current: None, tokens: Vec::new(), line: 1, column: 0};
         lexer.run()?;
         Ok(lexer.tokens)
     }
@@ -57,6 +60,12 @@ impl<'a> Lexer<'a> {
     }
 
     fn advance(&mut self) {
+        if self.current() == Some('\x0a'){
+            self.line += 1;
+            self.column = 1;
+        } else {
+            self.column += 1;
+        }
         self.current = self.chars.next()
     }
 
@@ -105,7 +114,7 @@ impl<'a> Lexer<'a> {
                             self.parse_delimiter()?;
                         },
                         ' ' | '\x09' | '\x0a' | '\x0d' => self.advance(),
-                        _   => parse_error!("unexpected character: {}", c),
+                        _   => parse_error!(self, "Unexpected character: {}", c),
                     }
                 },
                 None => break
@@ -142,7 +151,7 @@ impl<'a> Lexer<'a> {
                         self.advance();
                     }
                     ' ' | '\x09' | '\x0a' | '\x0d' => (),
-                    _ => parse_error!("unexpected character when looking for a delimiter: {}", c),
+                    _ => parse_error!(self, "Unexpected character when looking for a delimiter: {}", c),
                 }
             },
             None => ()
@@ -176,19 +185,25 @@ fn test_negative_integers() {
 }
 
 #[test]
-fn test_bad_syntax() {
-    assert!(Lexer::tokenize("(&&)").is_err())
-}
-
-#[test]
 fn test_whitespace() {
     assert_eq!(Lexer::tokenize("(+ 1 1)\n(+\n   2\t2 \n )\r\n \n").unwrap(),
                vec![OpenParen, Identifier("+".to_string()), Integer(1), Integer(1), CloseParen, OpenParen, Identifier("+".to_string()), Integer(2), Integer(2), CloseParen]);
 }
 
 #[test]
-fn test_terminor_checking() {
-    assert!(Lexer::tokenize("(+-)").is_err());
-    assert!(Lexer::tokenize("(-22+)").is_err());
-    assert!(Lexer::tokenize("(22+)").is_err());
+fn test_bad_syntax() {
+    assert_eq!(Lexer::tokenize("(&&)").err().unwrap().to_string(),
+               "ParseError: Unexpected character: & (line: 1, column: 2)")
+}
+
+#[test]
+fn test_delimiter_checking() {
+    assert_eq!(Lexer::tokenize("(+-)").err().unwrap().to_string(),
+               "ParseError: Unexpected character when looking for a delimiter: - (line: 1, column: 3)");
+    assert_eq!(Lexer::tokenize("(-22+)").err().unwrap().to_string(),
+               "ParseError: Unexpected character when looking for a delimiter: + (line: 1, column: 5)");
+    assert_eq!(Lexer::tokenize("(22+)").err().unwrap().to_string(),"ParseError: Unexpected character when looking for a delimiter: + (line: 1, column: 4)");
+    assert_eq!(Lexer::tokenize("(+ 2 3)\n(+ 1 2-)").err().unwrap().to_string(),
+               "ParseError: Unexpected character when looking for a delimiter: - (line: 2, column: 7)")
+
 }
