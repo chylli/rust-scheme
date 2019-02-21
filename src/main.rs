@@ -88,13 +88,13 @@ impl<'a> Lexer<'a> {
                                     self.advance();
                                     let val = self.parse_number()?;
                                     self.tokens.push(Integer(if c == '-'{ -1 * val} else { val }));
-                                    self.parse_terminator()?;
+                                    self.parse_delimiter()?;
                                 },
                                 _ => {
                                     // not followed by a digit, must be an identifier
                                     self.tokens.push(Identifier(c.to_string()));
                                     self.advance();
-                                    self.parse_terminator()?;
+                                    self.parse_delimiter()?;
                                 }
                             }
                         },
@@ -102,7 +102,7 @@ impl<'a> Lexer<'a> {
                             // don't advance -- let parse_number advance as needed
                             let val = self.parse_number()?;
                             self.tokens.push(Integer(val));
-                            self.parse_terminator()?;
+                            self.parse_delimiter()?;
                         },
                         ' ' => self.advance(),
                         _   => parse_error!("unexpected character: {}", c),
@@ -133,7 +133,7 @@ impl<'a> Lexer<'a> {
         Ok(s.parse().unwrap())
     }
 
-    fn parse_terminator(&mut self) -> Result<(), ParseError> {
+    fn parse_delimiter(&mut self) -> Result<(), ParseError> {
         match self.current() {
             Some(c) => {
                 match c {
@@ -142,7 +142,7 @@ impl<'a> Lexer<'a> {
                         self.advance();
                     }
                     ' ' => (),
-                    _ => parse_error!("unexpected character when looking for a terminator: {}", c),
+                    _ => parse_error!("unexpected character when looking for a delimiter: {}", c),
                 }
             },
             None => ()
