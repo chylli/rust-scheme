@@ -107,6 +107,11 @@ impl<'a> Lexer<'a> {
                                 }
                             }
                         },
+                        'A' ... 'Z' | 'a' ... 'z' | '!' | '$' | '%' | '&' | '*' | '/' | ':' | '<'  | '=' | '>' | '?' | '_' | '^' => {
+                            let val = self.parse_identifier()?;
+                            self.tokens.push(Identifier(val));
+                            self.parse_delimiter()?;
+                        },
                         '0' ... '9' => {
                             // don't advance -- let parse_number advance as needed
                             let val = self.parse_number()?;
@@ -140,6 +145,26 @@ impl<'a> Lexer<'a> {
             }
         }
         Ok(s.parse().unwrap())
+    }
+
+    fn parse_identifier(&mut self) -> Result<String, ParseError> {
+        let mut s = String::new();
+        loop {
+            match self.current(){
+                Some(c) => {
+                    match c {
+                        'A'...'Z' | 'a'...'z' | '0'...'9' | '!' | '$' | '%' | '&' | '*' | '/' | ':' | '<' | '=' | '>' | '?' | '_' | '^' | '+' | '-' | '#' => {
+                            s.push(c);
+                            self.advance();
+                        },
+                        _ => break
+
+                    }
+                }
+                None => break
+            }
+        }
+        Ok(s)
     }
 
     fn parse_delimiter(&mut self) -> Result<(), ParseError> {
@@ -185,6 +210,14 @@ fn test_negative_integers() {
 }
 
 #[test]
+fn test_identifiers() {
+    for identifier in ["*", "<", "<=", "if", "while", "$t$%*=:t059s"].iter(){
+        assert_eq!(Lexer::tokenize(*identifier).unwrap(),
+                   vec![Identifier(identifier.to_string())]);
+    }
+}
+
+#[test]
 fn test_whitespace() {
     assert_eq!(Lexer::tokenize("(+ 1 1)\n(+\n   2\t2 \n )\r\n \n").unwrap(),
                vec![OpenParen, Identifier("+".to_string()), Integer(1), Integer(1), CloseParen, OpenParen, Identifier("+".to_string()), Integer(2), Integer(2), CloseParen]);
@@ -192,8 +225,8 @@ fn test_whitespace() {
 
 #[test]
 fn test_bad_syntax() {
-    assert_eq!(Lexer::tokenize("(&&)").err().unwrap().to_string(),
-               "ParseError: Unexpected character: & (line: 1, column: 2)")
+    assert_eq!(Lexer::tokenize("(\\)").err().unwrap().to_string(),
+               "ParseError: Unexpected character: \\ (line: 1, column: 2)")
 }
 
 #[test]
