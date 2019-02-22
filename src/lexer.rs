@@ -11,6 +11,7 @@ macro_rules! parse_error {
     )
 }
 
+//pub here because main.rs used it. Maybe removed later.
 #[derive(PartialEq, Debug)]
 pub enum Token {
     OpenParen,
@@ -21,6 +22,7 @@ pub enum Token {
     String(String),
 }
 
+//pub here because main.rs used it. Maybe removed later.
 #[derive(Debug)]
 pub struct ParseError {
     message: String,
