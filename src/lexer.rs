@@ -237,37 +237,37 @@ impl<'a> Lexer<'a> {
 
 #[test]
 fn test_simple_lexing() {
-    assert_eq!(Lexer::tokenize("(+ 2 3)").unwrap(),
+    assert_eq!(tokenize("(+ 2 3)").unwrap(),
                vec![Token::OpenParen, Token::Identifier("+".to_string()), Token::Integer(2), Token::Integer(3), Token::CloseParen]);
 }
 
 #[test]
 fn test_multi_digit_integers() {
-    assert_eq!(Lexer::tokenize("(+ 21 325)").unwrap(),
+    assert_eq!(tokenize("(+ 21 325)").unwrap(),
                vec![Token::OpenParen, Token::Identifier("+".to_string()), Token::Integer(21), Token::Integer(325), Token::CloseParen]);
 }
 
 #[test]
 fn test_subtraction(){
-    assert_eq!(Lexer::tokenize("(+ -8 +2 -33)").unwrap(),
+    assert_eq!(tokenize("(+ -8 +2 -33)").unwrap(),
                vec![Token::OpenParen, Token::Identifier("+".to_string()), Token::Integer(-8), Token::Integer(2), Token::Integer(-33), Token::CloseParen]);
 }
 
 #[test]
 fn test_negative_integers() {
-    assert_eq!(Lexer::tokenize("(+ -8 +2 -33)").unwrap(),
+    assert_eq!(tokenize("(+ -8 +2 -33)").unwrap(),
                vec![Token::OpenParen, Token::Identifier("+".to_string()), Token::Integer(-8), Token::Integer(2), Token::Integer(-33), Token::CloseParen]);
 }
 
 #[test]
 fn test_booleans() {
-    assert_eq!(Lexer::tokenize("#t").unwrap(),
+    assert_eq!(tokenize("#t").unwrap(),
                vec![Token::Boolean(true)]);
-    assert_eq!(Lexer::tokenize("#f").unwrap(),
+    assert_eq!(tokenize("#f").unwrap(),
                vec![Token::Boolean(false)]);
-    assert_eq!(Lexer::tokenize("#").err().unwrap().to_string(),
+    assert_eq!(tokenize("#").err().unwrap().to_string(),
                "SyntaxError: Unexpected EOF when looking for t/f (line: 1, column: 2)");
-    assert_eq!(Lexer::tokenize("#a").err().unwrap().to_string(),
+    assert_eq!(tokenize("#a").err().unwrap().to_string(),
                "SyntaxError: Unexpected character when looking for t/f: a (line: 1, column: 2)");
 
 }
@@ -275,49 +275,49 @@ fn test_booleans() {
 #[test]
 fn test_identifiers() {
     for identifier in ["*", "<", "<=", "if", "while", "$t$%*=:t059s"].iter(){
-        assert_eq!(Lexer::tokenize(*identifier).unwrap(),
+        assert_eq!(tokenize(*identifier).unwrap(),
                    vec![Token::Identifier(identifier.to_string())]);
     }
 }
 
 #[test]
 fn test_strings() {
-    assert_eq!(Lexer::tokenize("\"hello\"").unwrap(),
+    assert_eq!(tokenize("\"hello\"").unwrap(),
                vec![Token::String("hello".to_string())]);
-    assert_eq!(Lexer::tokenize("\"a _ $ snthoeau(*&G#$()*^!\"").unwrap(),
+    assert_eq!(tokenize("\"a _ $ snthoeau(*&G#$()*^!\"").unwrap(),
                vec![Token::String("a _ $ snthoeau(*&G#$()*^!".to_string())]);
-    assert_eq!(Lexer::tokenize("\"truncated").err().unwrap().to_string(),
+    assert_eq!(tokenize("\"truncated").err().unwrap().to_string(),
                "SyntaxError: Expected end quote, but found EOF instead (line: 1, column: 11)")
 }
 
 
 #[test]
 fn test_whitespace() {
-    assert_eq!(Lexer::tokenize("(+ 1 1)\n(+\n   2\t2 \n )\r\n \n").unwrap(),
+    assert_eq!(tokenize("(+ 1 1)\n(+\n   2\t2 \n )\r\n \n").unwrap(),
                vec![Token::OpenParen, Token::Identifier("+".to_string()), Token::Integer(1), Token::Integer(1), Token::CloseParen, Token::OpenParen, Token::Identifier("+".to_string()), Token::Integer(2), Token::Integer(2), Token::CloseParen]);
 }
 
 #[test]
 fn test_bad_syntax() {
-    assert_eq!(Lexer::tokenize("(\\)").err().unwrap().to_string(),
+    assert_eq!(tokenize("(\\)").err().unwrap().to_string(),
                "SyntaxError: Unexpected character: \\ (line: 1, column: 2)")
 }
 
 #[test]
 fn test_delimiter_checking() {
-    assert_eq!(Lexer::tokenize("(+-)").err().unwrap().to_string(),
+    assert_eq!(tokenize("(+-)").err().unwrap().to_string(),
                "SyntaxError: Unexpected character when looking for a delimiter: - (line: 1, column: 3)");
-    assert_eq!(Lexer::tokenize("(-22+)").err().unwrap().to_string(),
+    assert_eq!(tokenize("(-22+)").err().unwrap().to_string(),
                "SyntaxError: Unexpected character when looking for a delimiter: + (line: 1, column: 5)");
-    assert_eq!(Lexer::tokenize("(22+)").err().unwrap().to_string(),"SyntaxError: Unexpected character when looking for a delimiter: + (line: 1, column: 4)");
-    assert_eq!(Lexer::tokenize("(+ 2 3)\n(+ 1 2-)").err().unwrap().to_string(),
+    assert_eq!(tokenize("(22+)").err().unwrap().to_string(),"SyntaxError: Unexpected character when looking for a delimiter: + (line: 1, column: 4)");
+    assert_eq!(tokenize("(+ 2 3)\n(+ 1 2-)").err().unwrap().to_string(),
                "SyntaxError: Unexpected character when looking for a delimiter: - (line: 2, column: 7)")
 
 }
 
 #[test]
 fn test_complex_code_block() {
-    assert_eq!(Lexer::tokenize("(define (list-of-squares n)\n  (let loop ((i n) (res (list)))\n    (if (< i 0)\n        res\n        (loop (- i 1) (cons (* i i) res)))))").unwrap(),
+    assert_eq!(tokenize("(define (list-of-squares n)\n  (let loop ((i n) (res (list)))\n    (if (< i 0)\n        res\n        (loop (- i 1) (cons (* i i) res)))))").unwrap(),
                vec![Token::OpenParen, Token::Identifier("define".to_string()), Token::OpenParen, Token::Identifier("list-of-squares".to_string()), Token::Identifier("n".to_string()), Token::CloseParen, Token::OpenParen, Token::Identifier("let".to_string()), Token::Identifier("loop".to_string()), Token::OpenParen, Token::OpenParen, Token::Identifier("i".to_string()), Token::Identifier("n".to_string()), Token::CloseParen, Token::OpenParen, Token::Identifier("res".to_string()), Token::OpenParen, Token::Identifier("list".to_string()), Token::CloseParen, Token::CloseParen, Token::CloseParen, Token::OpenParen, Token::Identifier("if".to_string()), Token::OpenParen, Token::Identifier("<".to_string()), Token::Identifier("i".to_string()), Token::Integer(0), Token::CloseParen, Token::Identifier("res".to_string()), Token::OpenParen, Token::Identifier("loop".to_string()), Token::OpenParen, Token::Identifier("-".to_string()), Token::Identifier("i".to_string()), Token::Integer(1), Token::CloseParen, Token::OpenParen, Token::Identifier("cons".to_string()), Token::OpenParen, Token::Identifier("*".to_string()), Token::Identifier("i".to_string()), Token::Identifier("i".to_string()), Token::CloseParen, Token::Identifier("res".to_string()), Token::CloseParen, Token::CloseParen, Token::CloseParen, Token::CloseParen, Token::CloseParen]);
 
 }
