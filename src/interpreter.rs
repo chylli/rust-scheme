@@ -52,36 +52,39 @@ fn evaluate_expression(nodes: Vec<Node>) -> Result<Node, RuntimeError> {
     };
     //TODO refactor it. like :
     //let func = match first { Node::Identifier(func) => func, _ => runtime_error!}
-    //match func.as_ref(){ "+"=> ...}
     match first {
         Node::Identifier(func) => {
-            if *func == "+".to_string() {
-                if nodes.len() < 2 {
-                    runtime_error!("Must supply at least two arguments to +: {:?}", nodes);
-                }
-                let mut sum = 0;
-                for n in others.iter() {
-                    match *n {
-                        Node::Integer(x) => sum += x,
-                        _ => runtime_error!("Unexpected node during +: {:?}", n)
+            match func.as_ref() {
+                "+" => {
+                    if nodes.len() < 2 {
+                        runtime_error!("Must supply at least two arguments to +: {:?}", nodes);
+                    }
+                    let mut sum = 0;
+                    for n in others.iter() {
+                        match *n {
+                            Node::Integer(x) => sum += x,
+                            _ => runtime_error!("Unexpected node during +: {:?}", n)
+                        };
                     };
-                };
-                Ok(Node::Integer(sum))
-            } else if *func == "-".to_string() {
-                if others.len() != 2 {
-                    runtime_error!("Must supply exactly two arguments to -: {:?}", nodes);
+                    Ok(Node::Integer(sum))
+                },
+                "-" => {
+                    if others.len() != 2 {
+                        runtime_error!("Must supply exactly two arguments to -: {:?}", nodes);
+                    }
+                    let mut result = match others.first() {
+                        Some(Node::Integer(x)) => *x,
+                        _ => runtime_error!("Unexpected node during -: {:?}", nodes)
+                    };
+                    result -= match others.last() {
+                        Some(Node::Integer(x)) => *x,
+                        _ => runtime_error!("Unexpected node during -: {:?}", nodes)
+                    };
+                    Ok(Node::Integer(result))
+                },
+                _ => {
+                    runtime_error!("Unknown function: {}", func);
                 }
-                let mut result = match others.first() {
-                    Some(Node::Integer(x)) => *x,
-                    _ => runtime_error!("Unexpected node during -: {:?}", nodes)
-                };
-                result -= match others.last() {
-                    Some(Node::Integer(x)) => *x,
-                    _ => runtime_error!("Unexpected node during -: {:?}", nodes)
-                };
-                Ok(Node::Integer(result))
-            } else {
-                runtime_error!("Unknown function: {}", func);
             }
         },
         _ => {
