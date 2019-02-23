@@ -1,5 +1,6 @@
 mod lexer;
 mod parser;
+mod interpreter;
 
 fn main() {
     run("(+ 2 3)");
@@ -8,16 +9,28 @@ fn main() {
     run("(+ 2 (- (+ 9 1) 4))");
 }
 
-fn run(s: &str) {
-    match lexer::tokenize(s){
-        Ok(tokens) => {
-            println!("tokens: {:?}", tokens);
-            let ast = parser::parse(tokens);
-            println!("ast: {:?}", ast);
-        },
-        Err(err) => {
-            println!("Syntax error: {}", err);
-            return;
-        }
-    }
+fn run(input: &str) {
+    println!("input: \"{:?}\"", input);
+    println!("result: \"{:?}\"", execute(input));
+}
+
+fn execute(input: &str) -> Result<String, String> {
+    let tokens = match lexer::tokenize(input) {
+        Ok(t) => t,
+        Err(e) => return Err(e.to_string())
+    };
+    println!("tokens: {:?}", tokens);
+
+    let ast = match parser::parse(tokens) {
+        Ok(t) => t,
+        Err(e) => return Err(e.to_string())
+    };
+    println!("ast: {:?}", ast);
+
+    let result = match interpreter::interpret(ast) {
+        Ok(t) => t,
+        Err(e) => return Err(e.to_string())
+    };
+
+    Ok(format!("{:?}", result))
 }
