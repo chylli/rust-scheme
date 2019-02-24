@@ -16,6 +16,9 @@ pub enum Value {
     List(Vec<Value>),
 }
 
+// null == empty list
+macro_rules! null { () => (Value::List(Vec::new()))}
+
 #[derive(Debug)]
 pub struct RuntimeError {
     message: String,
@@ -78,7 +81,7 @@ fn evaluate_node(node: &Node, env: &mut Environment) -> Result<Value, RuntimeErr
             if vec.len() > 0 {
                 evaluate_expression(vec, env)
             } else {
-                Ok(Value::List(Vec::new()))
+                Ok(null!())
             }
         }
     }
@@ -106,7 +109,7 @@ fn evaluate_expression(nodes: &Vec<Node>, env: &mut Environment) -> Result<Value
                         _ => runtime_error!("Unexpected node for name in define {:?}", nodes)};
                     let val = evaluate_node(others.last().unwrap(), env)?;
                     env.set(name.clone(),val);
-                    Ok(Value::Integer(0)) // TODO change to more sensible return value
+                    Ok(null!()) // TODO change to more sensible return value
                 },
                 "+" => {
                     if nodes.len() < 2 {
@@ -152,5 +155,5 @@ fn evaluate_expression(nodes: &Vec<Node>, env: &mut Environment) -> Result<Value
 #[test]
 fn test_global_variables() {
     assert_eq!(interpret(&vec![Node::List(vec![Node::Identifier("define".to_string()), Node::Identifier("x".to_string()), Node::Integer(2)]), Node::List(vec![Node::Identifier("+".to_string()), Node::Identifier("x".to_string()), Node::Identifier("x".to_string()), Node::Identifier("x".to_string())])]).unwrap(),
-               vec![Value::Integer(0), Value::Integer(6)]);
+               vec![null!(), Value::Integer(6)]);
 }
