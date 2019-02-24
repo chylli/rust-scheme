@@ -2,8 +2,16 @@ use crate::parser::Node;
 
 use std::fmt;
 
-pub fn interpret(nodes: &Vec<Node>) -> Result<Vec<Node>, RuntimeError> {
+pub fn interpret(nodes: &Vec<Node>) -> Result<Vec<Value>, RuntimeError> {
     evaluate_nodes(nodes)
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Value {
+    Integer(i64),
+    Boolean(bool),
+    String(String),
+    List(Vec<Value>),
 }
 
 pub struct RuntimeError {
@@ -22,7 +30,7 @@ macro_rules! runtime_error{
     )
 }
 
-fn evaluate_nodes(nodes: &Vec<Node>) -> Result<Vec<Node>, RuntimeError> {
+fn evaluate_nodes(nodes: &Vec<Node>) -> Result<Vec<Value>, RuntimeError> {
     let mut results = Vec::new();
     for node in nodes.iter() {
         let res = evaluate_node(node)?;
@@ -31,21 +39,23 @@ fn evaluate_nodes(nodes: &Vec<Node>) -> Result<Vec<Node>, RuntimeError> {
     Ok(results)
 }
 
-fn evaluate_node(node: &Node) -> Result<Node, RuntimeError> {
+fn evaluate_node(node: &Node) -> Result<Value, RuntimeError> {
     match node {
+        Node::Integer(v) => Ok(Value::Integer(*v)),
+        Node::Boolean(v) => Ok(Value::Boolean(*v)),
+        Node::String(v) => Ok(Value::String(v.clone())),
         Node::List(vec) => {
             if vec.len() > 0 {
-                let evaluated = evaluate_nodes(vec)?;
-                evaluate_expression(&evaluated)
+                evaluate_expression(vec)
             } else {
-                Ok(Node::List(Vec::new()))
+                Ok(Value::List(Vec::new()))
             }
         },
-        _ => Ok(node.clone())
+        _ => runtime_error!("Can't evaluate node: {:?}", node)
     }
 }
 
-fn evaluate_expression(nodes: &Vec<Node>) -> Result<Node, RuntimeError> {
+fn evaluate_expression(nodes: &Vec<Node>) -> Result<Value, RuntimeError> {
     let (first, others) = match nodes.split_first() {
         Some(v) => v,
         None => runtime_error!("Can't evaluate an empty expression: {:?}", nodes)
@@ -60,27 +70,30 @@ fn evaluate_expression(nodes: &Vec<Node>) -> Result<Node, RuntimeError> {
                         runtime_error!("Must supply at least two arguments to +: {:?}", nodes);
                     }
                     let mut sum = 0;
-                    for n in others.iter() {
-                        match *n {
-                            Node::Integer(x) => sum += x,
+                    for n in others.iter() { 
+                        let v = evaluate_node(n)?;
+                        match v {
+                            Value::Integer(x) => sum += x,
                             _ => runtime_error!("Unexpected node during +: {:?}", n)
                         };
                     };
-                    Ok(Node::Integer(sum))
+                    Ok(Value::Integer(sum))
                 },
                 "-" => {
                     if others.len() != 2 {
                         runtime_error!("Must supply exactly two arguments to -: {:?}", nodes);
                     }
-                    let mut result = match others.first() {
-                        Some(Node::Integer(x)) => *x,
+                    let v1 = evaluate_node(others.first().unwrap())?;
+                    let v2 = evaluate_node(others.last().unwrap())?;
+                    let mut result = match v1 {
+                        Value::Integer(x) => x,
                         _ => runtime_error!("Unexpected node during -: {:?}", nodes)
                     };
-                    result -= match others.last() {
-                        Some(Node::Integer(x)) => *x,
+                    result -= match v2 {
+                        Value::Integer(x) => x,
                         _ => runtime_error!("Unexpected node during -: {:?}", nodes)
                     };
-                    Ok(Node::Integer(result))
+                    Ok(Value::Integer(result))
                 },
                 _ => {
                     runtime_error!("Unknown function: {}", func);
