@@ -3,7 +3,7 @@ use crate::parser::Node;
 use std::fmt;
 use std::collections::HashMap;
 
-pub fn interpret(nodes: &Vec<Node>) -> Result<Vec<Value>, RuntimeError> {
+pub fn interpret(nodes: &Vec<Node>) -> Result<Value, RuntimeError> {
     let mut env = Environment::root();
     evaluate_nodes(nodes, &mut env)
 }
@@ -57,13 +57,12 @@ impl Environment {
     }
 }
 
-fn evaluate_nodes(nodes: &Vec<Node>, env: &mut Environment) -> Result<Vec<Value>, RuntimeError> {
-    let mut results = Vec::new();
+fn evaluate_nodes(nodes: &Vec<Node>, env: &mut Environment) -> Result<Value, RuntimeError> {
+    let mut result = null!();
     for node in nodes.iter() {
-        let res = evaluate_node(node, env)?;
-        results.push(res);
+        result = evaluate_node(node, env)?;
     };
-    Ok(results)
+    Ok(result)
 }
 
 fn evaluate_node(node: &Node, env: &mut Environment) -> Result<Value, RuntimeError> {
@@ -155,5 +154,5 @@ fn evaluate_expression(nodes: &Vec<Node>, env: &mut Environment) -> Result<Value
 #[test]
 fn test_global_variables() {
     assert_eq!(interpret(&vec![Node::List(vec![Node::Identifier("define".to_string()), Node::Identifier("x".to_string()), Node::Integer(2)]), Node::List(vec![Node::Identifier("+".to_string()), Node::Identifier("x".to_string()), Node::Identifier("x".to_string()), Node::Identifier("x".to_string())])]).unwrap(),
-               vec![null!(), Value::Integer(6)]);
+               Value::Integer(6));
 }
