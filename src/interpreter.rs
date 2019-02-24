@@ -93,7 +93,10 @@ fn evaluate_expression(nodes: &Vec<Node>, env: &mut Environment) -> Result<Value
     //let func = match first { Node::Identifier(func) => func, _ => runtime_error!}
     match first {
         Node::Identifier(func) => {
-            match func.as_ref() {
+            //match func as &str {
+            match func.as_ref(){
+            //match &(func[..]) {
+            //match &func[..] {
                 "define" => {
                     if nodes.len() !=3 {
                         runtime_error!("Must supply exactly two arguments to define: {:?}", nodes);
