@@ -21,13 +21,13 @@ fn execute(input: &str) -> Result<String, String> {
     };
     println!("tokens: {:?}", tokens);
 
-    let ast = match parser::parse(tokens) {
+    let ast = match parser::parse(&tokens) {
         Ok(t) => t,
         Err(e) => return Err(e.to_string())
     };
     println!("ast: {:?}", ast);
 
-    let result = match interpreter::interpret(ast) {
+    let result = match interpreter::interpret(&ast) {
         Ok(t) => t,
         Err(e) => return Err(e.to_string())
     };

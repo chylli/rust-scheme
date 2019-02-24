@@ -3,11 +3,11 @@ use std::fmt;
 use std::slice;
 
 
-pub fn parse(tokens: Vec<Token>) -> Result<Vec<Node>, ParseError> {
+pub fn parse(tokens: &Vec<Token>) -> Result<Vec<Node>, ParseError> {
     Parser::parse(tokens)
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Node {
     Identifier(String),
     Integer(i64),
@@ -38,7 +38,7 @@ struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn parse(tokens: Vec<Token>) -> Result<Vec<Node>, ParseError> {
+    fn parse(tokens: &Vec<Token>) -> Result<Vec<Node>, ParseError> {
         let mut parser = Parser { tokens: tokens.iter() };
         parser.run(0)
     }
@@ -88,24 +88,24 @@ impl<'a> Parser<'a> {
 
 #[test]
 fn test_simple() {
-    assert_eq!(parse(vec![Token::OpenParen, Token::Identifier("+".to_string()), Token::CloseParen]).unwrap(),
+    assert_eq!(parse(&vec![Token::OpenParen, Token::Identifier("+".to_string()), Token::CloseParen]).unwrap(),
                vec![Node::List(vec![Node::Identifier("+".to_string())])]);
 }
 
 #[test]
 fn test_nested() {
-    assert_eq!(parse(vec![Token::OpenParen, Token::Identifier("+".to_string()), Token::OpenParen, Token::Identifier("+".to_string()), Token::Integer(1), Token::OpenParen, Token::Identifier("+".to_string()), Token::Integer(3), Token::Integer(4), Token::CloseParen, Token::CloseParen, Token::Integer(5), Token::CloseParen]).unwrap(),
+    assert_eq!(parse(&vec![Token::OpenParen, Token::Identifier("+".to_string()), Token::OpenParen, Token::Identifier("+".to_string()), Token::Integer(1), Token::OpenParen, Token::Identifier("+".to_string()), Token::Integer(3), Token::Integer(4), Token::CloseParen, Token::CloseParen, Token::Integer(5), Token::CloseParen]).unwrap(),
                vec![Node::List(vec![Node::Identifier("+".to_string()), Node::List(vec![Node::Identifier("+".to_string()), Node::Integer(1), Node::List(vec![Node::Identifier("+".to_string()), Node::Integer(3), Node::Integer(4)])]), Node::Integer(5)])]);
 }
 
 #[test]
 fn test_bad_syntax() {
-    assert_eq!(parse(vec![Token::CloseParen]).err().unwrap().to_string(),
+    assert_eq!(parse(&vec![Token::CloseParen]).err().unwrap().to_string(),
                "ParseError: Unexpected close paren, depth: 0");
-    assert_eq!(parse(vec![Token::OpenParen, Token::OpenParen, Token::CloseParen]).err().unwrap().to_string(),
+    assert_eq!(parse(&vec![Token::OpenParen, Token::OpenParen, Token::CloseParen]).err().unwrap().to_string(),
                "ParseError: Unexpected end of input, depth: 1");
-    assert_eq!(parse(vec![Token::OpenParen, Token::CloseParen, Token::CloseParen]).err().unwrap().to_string(),
+    assert_eq!(parse(&vec![Token::OpenParen, Token::CloseParen, Token::CloseParen]).err().unwrap().to_string(),
                "ParseError: Unexpected close paren, depth: 0");
-    assert_eq!(parse(vec![Token::OpenParen, Token::OpenParen, Token::CloseParen, Token::OpenParen, Token::OpenParen, Token::CloseParen]).err().unwrap().to_string(),
+    assert_eq!(parse(&vec![Token::OpenParen, Token::OpenParen, Token::CloseParen, Token::OpenParen, Token::OpenParen, Token::CloseParen]).err().unwrap().to_string(),
                "ParseError: Unexpected end of input, depth: 2");
 }
