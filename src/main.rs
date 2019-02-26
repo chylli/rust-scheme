@@ -20,7 +20,7 @@ fn run(input: &str) {
 }
 
 fn execute(input: &str) -> Result<String, String> {
-    let tokens = try_or_err_to_str!(lexer::tokenize((input)));
+    let tokens = try_or_err_to_str!(lexer::tokenize(input));
     let ast = try_or_err_to_str!(parser::parse(&tokens));
     let result = try_or_err_to_str!(interpreter::interpret(&ast));
 
@@ -85,6 +85,20 @@ fn test_unknown_variable_modification() {
 #[test]
 fn test_procedure_definition() {
     assert_execute!("(define double (lambda (x) (+ x x))) (double 8)", "16");
+}
+
+#[test]
+fn test_conditional_execution() {
+    assert_execute!("(if #t 1 2)", "1");
+    assert_execute!("(if #f 1 2)", "2");
+    assert_execute!("(if 0 1 2)", "1");
+    assert_execute!("(if \"\" 1 2)", "1");
+}
+
+#[test]
+fn test_conditional_execution_doesnt_run_other_case() {
+    assert_execute!("(define x 1) (define y 1) (if #t (set! x 4) (set! y 5)) (+ x y)", "5");
+    assert_execute!("(define x 1) (define y 1) (if #f (set! x 4) (set! y 5)) (+ x y)", "6");
 }
 
 #[test]

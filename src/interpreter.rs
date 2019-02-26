@@ -188,6 +188,16 @@ fn evaluate_expression(nodes: &Vec<Node>, env: Rc<RefCell<Environment>>) -> Resu
                     let expressions = nodes[2..].to_vec();
                     Ok(Value::Procedure(args, expressions))
                 },
+                "if" => {
+                    if nodes.len() != 4 {
+                        runtime_error!("Must supply exactly three arguments to if: {:?}", nodes);
+                    }
+                    let condition = evaluate_node(nodes.get(1).unwrap(), env.clone())?;
+                    match condition {
+                        Value::Boolean(false) => evaluate_node(nodes.get(3).unwrap(), env.clone()),
+                        _ => evaluate_node(nodes.get(2).unwrap(), env.clone())
+                    }
+                },
                 "+" => {
                     if nodes.len() < 2 {
                         runtime_error!("Must supply at least two arguments to +: {:?}", nodes);
