@@ -97,8 +97,8 @@ fn test_conditional_execution() {
 
 #[test]
 fn test_conditional_execution_doesnt_run_other_case() {
-    assert_execute!("(define x 1) (define y 1) (if #t (set! x 4) (set! y 5)) (+ x y)", "5");
-    assert_execute!("(define x 1) (define y 1) (if #f (set! x 4) (set! y 5)) (+ x y)", "6");
+    assert_execute!("(if #t 1 (error \"bad\"))", "1");
+    assert_execute!("(if #f (error \"bad\") 2)", "2");
 }
 
 #[test]

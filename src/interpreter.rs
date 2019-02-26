@@ -228,6 +228,13 @@ fn evaluate_expression(nodes: &Vec<Node>, env: Rc<RefCell<Environment>>) -> Resu
                     };
                     Ok(Value::Integer(result))
                 },
+                "error" => {
+                    if nodes.len() != 2 {
+                        runtime_error!("Must suppply exactly one arguments to  error: {:?}", nodes);
+                    }
+                    let e = evaluate_node(nodes.get(1).unwrap(), env.clone())?;
+                    runtime_error!("{}", e);
+                },
                 _ => {
                     match env.borrow().get(func) {
                         Some(Value::Procedure(args, body)) => {
