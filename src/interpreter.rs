@@ -74,6 +74,10 @@ impl Environment {
         self.values.insert(key, value);
     }
 
+    fn has(&self, key: &String) -> bool {
+        self.values.contains_key(key)
+    }
+
     fn get(&self, key: &String) -> Option<Value> {
         match self.values.get(key) {
             Some(val) => Some(val.clone()),
@@ -137,9 +141,15 @@ fn evaluate_expression(nodes: &Vec<Node>, env: Rc<RefCell<Environment>>) -> Resu
                     let name = match others.first().unwrap() {
                         Node::Identifier(x) => x,
                         _ => runtime_error!("Unexpected node for name in define {:?}", nodes)};
-                    let val = evaluate_node(others.last().unwrap(), env.clone())?;
-                    env.borrow_mut().set(name.clone(),val);
-                    Ok(null!())
+                    let alreadyDefined = env.borrow().has(name);
+                    if !alreadyDefined {
+                        let val = evaluate_node(others.last().unwrap(), env.clone())?;
+                        env.borrow_mut().set(name.clone(),val);
+                        Ok(null!())
+                    } else{
+                        runtime_error!("Duplicate define: {}", name)
+                    }
+
                 },
                 "lambda" => {
                     if nodes.len() < 3 {
