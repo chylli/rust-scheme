@@ -2,10 +2,12 @@ use crate::parser::Node;
 
 use std::fmt;
 use std::collections::HashMap;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 pub fn interpret(nodes: &Vec<Node>) -> Result<Value, RuntimeError> {
-    let mut env = Environment::root();
-    evaluate_nodes(nodes, &mut env)
+    let env = Environment::new_root();
+    evaluate_nodes(nodes, env)
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -14,6 +16,7 @@ pub enum Value {
     Boolean(bool),
     String(String),
     List(Vec<Value>),
+    Procedure(Vec<String>, Vec<Node>),
 }
 
 // null == empty list
@@ -37,14 +40,21 @@ macro_rules! runtime_error{
 }
 
 struct Environment {
+    parent: Option<Rc<RefCell<Environment>>>,
     values: HashMap<String, Value>,
 }
 
 impl Environment {
-    fn root() -> Environment {
-        Environment { values: HashMap::new()}
+    fn new_root() -> Rc<RefCell<Environment>> {
+        let env = Environment { parent: None, values: HashMap::new()};
+        Rc::new(RefCell::new(env))
     }
 
+    //define a new type for Rc<RefCell<Environment>> ?
+    fn new_child(parent: Rc<RefCell<Environment>>) -> Rc<RefCell<Environment>> {
+        let env = Environment { parent: Some(parent), values: HashMap::new()};
+        Rc::new(RefCell::new(env))
+    }
     fn set(&mut self, key: String, value: Value) {
         self.values.insert(key, value);
     }
@@ -52,23 +62,29 @@ impl Environment {
     fn get(&self, key: &String) -> Option<Value> {
         match self.values.get(key) {
             Some(val) => Some(val.clone()),
-            None => None
+            None => {
+                // recurse up the environment tree until a value is found or the end is reached
+                match &self.parent {
+                    Some(parent) => parent.borrow().get(key),
+                    None => None
+                }
+            }
         }
     }
 }
 
-fn evaluate_nodes(nodes: &Vec<Node>, env: &mut Environment) -> Result<Value, RuntimeError> {
+fn evaluate_nodes(nodes: &Vec<Node>, env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
     let mut result = null!();
     for node in nodes.iter() {
-        result = evaluate_node(node, env)?;
+        result = evaluate_node(node, env.clone())?;
     };
     Ok(result)
 }
 
-fn evaluate_node(node: &Node, env: &mut Environment) -> Result<Value, RuntimeError> {
+fn evaluate_node(node: &Node, env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
     match node {
         Node::Identifier(v) => {
-            match env.get(v) {
+            match env.borrow().get(v) {
                 Some(val) => Ok(val),
                 None => runtime_error!("Identifier not found: {:?}", node)
             }
@@ -86,7 +102,7 @@ fn evaluate_node(node: &Node, env: &mut Environment) -> Result<Value, RuntimeErr
     }
 }
 
-fn evaluate_expression(nodes: &Vec<Node>, env: &mut Environment) -> Result<Value, RuntimeError> {
+fn evaluate_expression(nodes: &Vec<Node>, env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
     let (first, others) = match nodes.split_first() {
         Some(v) => v,
         None => runtime_error!("Can't evaluate an empty expression: {:?}", nodes)
@@ -106,9 +122,29 @@ fn evaluate_expression(nodes: &Vec<Node>, env: &mut Environment) -> Result<Value
                     let name = match others.first().unwrap() {
                         Node::Identifier(x) => x,
                         _ => runtime_error!("Unexpected node for name in define {:?}", nodes)};
-                    let val = evaluate_node(others.last().unwrap(), env)?;
-                    env.set(name.clone(),val);
-                    Ok(null!()) // TODO change to more sensible return value
+                    let val = evaluate_node(others.last().unwrap(), env.clone())?;
+                    env.borrow_mut().set(name.clone(),val);
+                    Ok(null!())
+                },
+                "lambda" => {
+                    if nodes.len() < 3 {
+                        runtime_error!("Must supply at least two arguments to lambda: {:?}", nodes)
+                    }
+                    let args = match nodes.get(1).unwrap(){
+                        Node::List(list) => {
+                            let mut names = Vec::new();
+                            for item in list.iter(){
+                                match item {
+                                    Node::Identifier(s) => names.push(s.clone()),
+                                    _ => runtime_error!("Unexpected argument  in lambda arguments: {:?}", item)
+                                };
+                            }
+                            names
+                        }
+                        _ => runtime_error!("Unexpected node for arguments in lambda: {:?}", nodes)
+                    };
+                    let expressions = nodes[2..].to_vec();
+                    Ok(Value::Procedure(args, expressions))
                 },
                 "+" => {
                     if nodes.len() < 2 {
@@ -116,7 +152,7 @@ fn evaluate_expression(nodes: &Vec<Node>, env: &mut Environment) -> Result<Value
                     }
                     let mut sum = 0;
                     for n in others.iter() { 
-                        let v = evaluate_node(n, env)?;
+                        let v = evaluate_node(n, env.clone())?;
                         match v {
                             Value::Integer(x) => sum += x,
                             _ => runtime_error!("Unexpected node during +: {:?}", n)
@@ -128,8 +164,8 @@ fn evaluate_expression(nodes: &Vec<Node>, env: &mut Environment) -> Result<Value
                     if others.len() != 2 {
                         runtime_error!("Must supply exactly two arguments to -: {:?}", nodes);
                     }
-                    let v1 = evaluate_node(others.first().unwrap(), env)?;
-                    let v2 = evaluate_node(others.last().unwrap(), env)?;
+                    let v1 = evaluate_node(others.first().unwrap(), env.clone())?;
+                    let v2 = evaluate_node(others.last().unwrap(), env.clone())?;
                     let mut result = match v1 {
                         Value::Integer(x) => x,
                         _ => runtime_error!("Unexpected node during -: {:?}", nodes)
@@ -141,7 +177,23 @@ fn evaluate_expression(nodes: &Vec<Node>, env: &mut Environment) -> Result<Value
                     Ok(Value::Integer(result))
                 },
                 _ => {
-                    runtime_error!("Unknown function: {}", func);
+                    match env.borrow().get(func) {
+                        Some(Value::Procedure(args, body)) => {
+                            if nodes.len() != args.len() + 1 {
+                                runtime_error!("Must supply exactly {} arguments to {}: {:?}", args.len(), func, nodes);
+                            }
+                            //create a new child enviornment for the procedure and define the arguments as local variables
+                            let procEnv = Environment::new_child(env.clone());
+                            for (arg, node) in args.iter().zip(nodes[1..].iter()) { //TODO use nodes split 
+                                let val = evaluate_node(node, env.clone())?;
+                                procEnv.borrow_mut().set(arg.clone(), val);
+                            }
+
+                            Ok(evaluate_nodes(&body, procEnv)?)
+                        },
+                        Some(other) => runtime_error!("Can't execute a non-procedure: {:?}", other),
+                        None => runtime_error!("Unknown function: {}",func)
+                    }
                 }
             }
         },
@@ -156,3 +208,10 @@ fn test_global_variables() {
     assert_eq!(interpret(&vec![Node::List(vec![Node::Identifier("define".to_string()), Node::Identifier("x".to_string()), Node::Integer(2)]), Node::List(vec![Node::Identifier("+".to_string()), Node::Identifier("x".to_string()), Node::Identifier("x".to_string()), Node::Identifier("x".to_string())])]).unwrap(),
                Value::Integer(6));
 }
+
+#[test]
+fn test_global_function_definition() {
+    assert_eq!(interpret(&vec![Node::List(vec![Node::Identifier("define".to_string()), Node::Identifier("double".to_string()), Node::List(vec![Node::Identifier("lambda".to_string()), Node::List(vec![Node::Identifier("x".to_string())]), Node::List(vec![Node::Identifier("+".to_string()), Node::Identifier("x".to_string()), Node::Identifier("x".to_string())])])]), Node::List(vec![Node::Identifier("double".to_string()), Node::Integer(8)])]).unwrap(),
+               Value::Integer(16));
+}
+
