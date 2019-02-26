@@ -198,6 +198,27 @@ fn evaluate_expression(nodes: &Vec<Node>, env: Rc<RefCell<Environment>>) -> Resu
                         _ => evaluate_node(nodes.get(2).unwrap(), env.clone())
                     }
                 },
+                "and" => {
+                    let mut res = Value::Boolean(true);
+                    for n in nodes[1..].iter() {
+                        let v = evaluate_node(n, env.clone())?;
+                        match v {
+                            Value::Boolean(false) => return Ok(v),
+                            _ => res = v
+                        }
+                    }
+                    Ok(res)
+                },
+                "or" => {
+                    for n in nodes[1..].iter() {
+                        let v = evaluate_node(n, env.clone())?;
+                        match v {
+                            Value::Boolean(false) => (),
+                            _ => return Ok(v)
+                        }
+                    }
+                    Ok(Value::Boolean(false))
+                },
                 "+" => {
                     if nodes.len() < 2 {
                         runtime_error!("Must supply at least two arguments to +: {:?}", nodes);
