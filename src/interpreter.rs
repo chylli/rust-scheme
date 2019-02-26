@@ -21,11 +21,11 @@ pub enum Value {
 
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
+        match self {
             Value::Integer(val) => write!(f, "{}", val),
-            Value::Boolean(val) => write!(f, "{}", val),
-            Value::String(ref val) => write!(f, "{}", val),
-            Value::List(ref list)  => {
+            Value::Boolean(val) => write!(f, "#{}", if *val {"t"} else {"f"}),
+            Value::String(val) => write!(f, "\"{}\"", val),
+            Value::List(list)  => {
                 let strs: Vec<String> = list.iter().map(|v| format!("{}", v)).collect();
                 write!(f, "({})", &strs.join(" "))
             },
