@@ -151,6 +151,23 @@ fn evaluate_expression(nodes: &Vec<Node>, env: Rc<RefCell<Environment>>) -> Resu
                     }
 
                 },
+                "set!" => {
+                    if nodes.len() != 3 {
+                        runtime_error!("Must supply excactly two arguments to set!: {:?}", nodes);
+                    }
+                    let name = match nodes.get(1).unwrap() {
+                        Node::Identifier(x) => x,
+                        _ => runtime_error!("Unexpected node for name in set!: {:?}", nodes)
+                    };
+                    let alreadyDefined = env.borrow().has(name);
+                    if alreadyDefined {
+                        let val = evaluate_node(nodes.get(2).unwrap(), env.clone())?;
+                        env.borrow_mut().set(name.clone(), val);
+                        Ok(null!())
+                    } else {
+                        runtime_error!("Can't set! an undefined variable: {}",name)
+                    }
+                }
                 "lambda" => {
                     if nodes.len() < 3 {
                         runtime_error!("Must supply at least two arguments to lambda: {:?}", nodes)
