@@ -34,5 +34,5 @@ fn execute(input: &str) -> Result<String, String> {
         Err(e) => return Err(e.to_string())
     };
 
-    Ok(format!("{:?}", result))
+    Ok(format!("{}", result))
 }

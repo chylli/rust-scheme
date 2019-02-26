@@ -19,6 +19,21 @@ pub enum Value {
     Procedure(Vec<String>, Vec<Node>),
 }
 
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Value::Integer(val) => write!(f, "{}", val),
+            Value::Boolean(val) => write!(f, "{}", val),
+            Value::String(ref val) => write!(f, "{}", val),
+            Value::List(ref list)  => {
+                let strs: Vec<String> = list.iter().map(|v| format!("{}", v)).collect();
+                write!(f, "({})", &strs.join(" "))
+            },
+            Value::Procedure(_, _) => write!(f, "#<procedure>")
+        }
+    }
+}
+
 // null == empty list
 macro_rules! null { () => (Value::List(Vec::new()))}
 
@@ -183,15 +198,15 @@ fn evaluate_expression(nodes: &Vec<Node>, env: Rc<RefCell<Environment>>) -> Resu
                                 runtime_error!("Must supply exactly {} arguments to {}: {:?}", args.len(), func, nodes);
                             }
                             //create a new child enviornment for the procedure and define the arguments as local variables
-                            let procEnv = Environment::new_child(env.clone());
+                            let proc_env = Environment::new_child(env.clone());
                             for (arg, node) in args.iter().zip(nodes[1..].iter()) { //TODO use nodes split 
                                 let val = evaluate_node(node, env.clone())?;
-                                procEnv.borrow_mut().set(arg.clone(), val);
+                                proc_env.borrow_mut().set(arg.clone(), val);
                             }
 
-                            Ok(evaluate_nodes(&body, procEnv)?)
+                            Ok(evaluate_nodes(&body, proc_env)?)
                         },
-                        Some(other) => runtime_error!("Can't execute a non-procedure: {:?}", other),
+                        Some(other) => runtime_error!("Can't execute a non-procedure: {}", other),
                         None => runtime_error!("Unknown function: {}",func)
                     }
                 }
