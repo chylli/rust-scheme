@@ -12,6 +12,7 @@ pub fn interpret(nodes: &Vec<Node>) -> Result<Value, RuntimeError> {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Value {
+    Symbol(String),
     Integer(i64),
     Boolean(bool),
     String(String),
@@ -22,6 +23,7 @@ pub enum Value {
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            Value::Symbol(val) => write!(f, "{}", val),
             Value::Integer(val) => write!(f, "{}", val),
             Value::Boolean(val) => write!(f, "#{}", if *val {"t"} else {"f"}),
             Value::String(val) => write!(f, "\"{}\"", val),
@@ -117,6 +119,24 @@ fn evaluate_node(node: &Node, env: Rc<RefCell<Environment>>) -> Result<Value, Ru
             } else {
                 Ok(null!())
             }
+        }
+    }
+}
+
+// TODO create an alias type for environment ? 
+fn quote_node(node: &Node, env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
+    match node {
+        Node::Identifier(v) => Ok(Value::Symbol(v.clone())),
+        Node::Integer(v) => Ok(Value::Integer(*v)),
+        Node::Boolean(v) => Ok(Value::Boolean(*v)),
+        Node::String(v) => Ok(Value::String(v.clone())),
+        Node::List(vec) => {
+            let mut res = vec![];
+            for n in vec.iter() {
+                let v = quote_node(n, env.clone())?;
+                res.push(v);
+            }
+            Ok(Value::List(res))
         }
     }
 }
@@ -248,6 +268,12 @@ fn evaluate_expression(nodes: &Vec<Node>, env: Rc<RefCell<Environment>>) -> Resu
                         _ => runtime_error!("Unexpected node during -: {:?}", nodes)
                     };
                     Ok(Value::Integer(result))
+                },
+                "quote" => {
+                    if nodes.len() != 2 {
+                        runtime_error!("Must supply exactly one argument to quote: {:?}", nodes);
+                    }
+                    quote_node(nodes.get(1).unwrap(), env.clone())
                 },
                 "error" => {
                     if nodes.len() != 2 {
