@@ -81,6 +81,24 @@ impl<'a> Parser<'a> {
                             None => parse_error!("Missing quoted value, depth: {}", depth)
                         }
                     },
+                    Token::Quasiquote => {
+                        match self.parse_node(depth)? {
+                            Some(inner) => {
+                                let quoted = Node::List(vec![Node::Identifier("quasiquote".to_string()), inner]);
+                                Ok(Some(quoted))
+                            },
+                            None => parse_error!("Missing quasiquoted value, depth: {}", depth)
+                        }
+                    }
+                    Token::Unquote => {
+                        match self.parse_node(depth)? {
+                            Some(inner) => {
+                                let quoted = Node::List(vec![Node::Identifier("unquote".to_string()), inner]);
+                                Ok(Some(quoted))
+                            },
+                            None => parse_error!("Missing unquoted value, depth: {}", depth)
+                        }
+                    },
                     Token::Identifier(val) => {
                         Ok(Some(Node::Identifier(val.clone())))
                     },
@@ -119,14 +137,20 @@ fn test_nested() {
 }
 
 #[test]
-fn test_quote() {
+fn test_quoting() {
     assert_eq!(parse(&vec![Token::Quote, Token::OpenParen, Token::Identifier("a".to_string()), Token::CloseParen]).unwrap(),
                vec![Node::List(vec![Node::Identifier("quote".to_string()), Node::List(vec![Node::Identifier("a".to_string())])])]);
     assert_eq!(parse(&vec![Token::OpenParen, Token::Identifier("list".to_string()), Token::Quote, Token::Identifier("a".to_string()), Token::Identifier("b".to_string()), Token::CloseParen]).unwrap(),
                vec![Node::List(vec![Node::Identifier("list".to_string()), Node::List(vec![Node::Identifier("quote".to_string()), Node::Identifier("a".to_string())]), Node::Identifier("b".to_string())])]);
 }
 
-
+#[test]
+fn test_quasiquoting() {
+    assert_eq!(parse(&vec![Token::Quasiquote, Token::OpenParen, Token::Unquote, Token::Identifier("a".to_string()), Token::CloseParen]).unwrap(),
+               vec![Node::List(vec![Node::Identifier("quasiquote".to_string()), Node::List(vec![Node::List(vec![Node::Identifier("unquote".to_string()), Node::Identifier("a".to_string())])])])]);
+    assert_eq!(parse(&vec![Token::Quasiquote, Token::OpenParen, Token::Unquote, Token::Identifier("a".to_string()), Token::Identifier("b".to_string()), Token::Unquote, Token::Identifier("c".to_string()), Token::CloseParen]).unwrap(),
+               vec![Node::List(vec![Node::Identifier("quasiquote".to_string()), Node::List(vec![Node::List(vec![Node::Identifier("unquote".to_string()), Node::Identifier("a".to_string())]), Node::Identifier("b".to_string()), Node::List(vec![Node::Identifier("unquote".to_string()), Node::Identifier("c".to_string())])])])]);
+}
 
 #[test]
 fn test_bad_syntax() {

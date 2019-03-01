@@ -17,6 +17,8 @@ pub enum Token {
     OpenParen,
     CloseParen,
     Quote,
+    Quasiquote,
+    Unquote,
     Identifier(String),
     Integer(i64),
     Boolean(bool),
@@ -90,7 +92,15 @@ impl<'a> Lexer<'a> {
                         '\'' => {
                             self.tokens.push(Token::Quote);
                             self.advance();
-                        }
+                        },
+                        '`' => {
+                            self.tokens.push(Token::Quasiquote);
+                            self.advance();
+                        },
+                        ',' => {
+                            self.tokens.push(Token::Unquote);
+                            self.advance();
+                        },
                         '+' | '-' => {
                             match self.peek() {
                                 Some('0'...'9') => {
@@ -328,6 +338,14 @@ fn test_quoting() {
                vec![Token::Quote, Token::OpenParen, Token::Quote, Token::Identifier("a".to_string()), Token::Quote, Token::Identifier("b".to_string()), Token::CloseParen]);
     assert_eq!(tokenize("(list 'a b)").unwrap(),
                vec![Token::OpenParen, Token::Identifier("list".to_string()), Token::Quote, Token::Identifier("a".to_string()), Token::Identifier("b".to_string()), Token::CloseParen]);
+}
+
+#[test]
+fn test_quasiquoting() {
+    assert_eq!(tokenize("`(,a)").unwrap(),
+               vec![Token::Quasiquote, Token::OpenParen, Token::Unquote, Token::Identifier("a".to_string()), Token::CloseParen]);
+    assert_eq!(tokenize("`(,a b ,c)").unwrap(),
+               vec![Token::Quasiquote, Token::OpenParen, Token::Unquote, Token::Identifier("a".to_string()), Token::Identifier("b".to_string()), Token::Unquote, Token::Identifier("c".to_string()), Token::CloseParen]);
 }
 
 #[test]
