@@ -10,15 +10,36 @@ pub fn interpret(nodes: &Vec<Node>) -> Result<Value, RuntimeError> {
     evaluate_nodes(nodes, env)
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub enum Value {
     Symbol(String),
     Integer(i64),
     Boolean(bool),
     String(String),
     List(Vec<Value>),
-    Procedure(Vec<String>, Vec<Node>),
+    Procedure(Function),
 }
+
+// null == empty list
+macro_rules! null { () => (Value::List(Vec::new()))}
+
+// TODO maybe wrong here
+#[derive(Clone)]
+pub enum Function {
+    NativeFunction(ValueOperation),
+    SchemeFunction(Vec<String>, Vec<Node>),
+}
+
+impl PartialEq for Function {
+    fn eq(&self, other: &Function) -> bool {
+        self == other
+    }
+}
+
+
+// type signature for all native functions
+type ValueOperation = fn(&[Node], Rc<RefCell<Environment>>) -> Result<Value, RuntimeError>;
+
 
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -31,13 +52,16 @@ impl fmt::Display for Value {
                 let strs: Vec<String> = list.iter().map(|v| format!("{}", v)).collect();
                 write!(f, "({})", &strs.join(" "))
             },
-            Value::Procedure(_, _) => write!(f, "#<procedure>")
+            Value::Procedure(_) => write!(f, "#<procedure>")
         }
     }
 }
 
-// null == empty list
-macro_rules! null { () => (Value::List(Vec::new()))}
+impl fmt::Debug for Value {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
 
 #[derive(Debug)]
 pub struct RuntimeError {
@@ -63,7 +87,11 @@ struct Environment {
 
 impl Environment {
     fn new_root() -> Rc<RefCell<Environment>> {
-        let env = Environment { parent: None, values: HashMap::new()};
+        let mut env = Environment { parent: None, values: HashMap::new()};
+        for item in PREDEFINED_FUNCTIONS.iter() {
+            let (name, func) = item;
+            env.set(name.to_string(), Value::Procedure(func.clone()));
+        }
         Rc::new(RefCell::new(env))
     }
 
@@ -160,177 +188,211 @@ fn evaluate_expression(nodes: &Vec<Node>, env: Rc<RefCell<Environment>>) -> Resu
     //let func = match first { Node::Identifier(func) => func, _ => runtime_error!}
     match first {
         Node::Identifier(func) => {
-            //match func as &str {
-            match func.as_ref(){
-            //match &(func[..]) {
-            //match &func[..] {
-                "define" => {
-                    if nodes.len() !=3 {
-                        runtime_error!("Must supply exactly two arguments to define: {:?}", nodes);
-                    }
-                    let name = match others.first().unwrap() {
-                        Node::Identifier(x) => x,
-                        _ => runtime_error!("Unexpected node for name in define {:?}", nodes)};
-                    let alreadyDefined = env.borrow().has(name);
-                    if !alreadyDefined {
-                        let val = evaluate_node(others.last().unwrap(), env.clone())?;
-                        env.borrow_mut().set(name.clone(),val);
-                        Ok(null!())
-                    } else{
-                        runtime_error!("Duplicate define: {}", name)
-                    }
-
-                },
-                "set!" => {
-                    if nodes.len() != 3 {
-                        runtime_error!("Must supply excactly two arguments to set!: {:?}", nodes);
-                    }
-                    let name = match nodes.get(1).unwrap() {
-                        Node::Identifier(x) => x,
-                        _ => runtime_error!("Unexpected node for name in set!: {:?}", nodes)
-                    };
-                    let alreadyDefined = env.borrow().has(name);
-                    if alreadyDefined {
-                        let val = evaluate_node(nodes.get(2).unwrap(), env.clone())?;
-                        env.borrow_mut().set(name.clone(), val);
-                        Ok(null!())
-                    } else {
-                        runtime_error!("Can't set! an undefined variable: {}",name)
-                    }
-                }
-                "lambda" | "λ" => {
-                    if nodes.len() < 3 {
-                        runtime_error!("Must supply at least two arguments to lambda: {:?}", nodes)
-                    }
-                    let args = match nodes.get(1).unwrap(){
-                        Node::List(list) => {
-                            let mut names = Vec::new();
-                            for item in list.iter(){
-                                match item {
-                                    Node::Identifier(s) => names.push(s.clone()),
-                                    _ => runtime_error!("Unexpected argument  in lambda arguments: {:?}", item)
-                                };
-                            }
-                            names
-                        }
-                        _ => runtime_error!("Unexpected node for arguments in lambda: {:?}", nodes)
-                    };
-                    let expressions = nodes[2..].to_vec();
-                    Ok(Value::Procedure(args, expressions))
-                },
-                "if" => {
-                    if nodes.len() != 4 {
-                        runtime_error!("Must supply exactly three arguments to if: {:?}", nodes);
-                    }
-                    let condition = evaluate_node(nodes.get(1).unwrap(), env.clone())?;
-                    match condition {
-                        Value::Boolean(false) => evaluate_node(nodes.get(3).unwrap(), env.clone()),
-                        _ => evaluate_node(nodes.get(2).unwrap(), env.clone())
-                    }
-                },
-                "and" => {
-                    let mut res = Value::Boolean(true);
-                    for n in nodes[1..].iter() {
-                        let v = evaluate_node(n, env.clone())?;
-                        match v {
-                            Value::Boolean(false) => return Ok(v),
-                            _ => res = v
-                        }
-                    }
-                    Ok(res)
-                },
-                "or" => {
-                    for n in nodes[1..].iter() {
-                        let v = evaluate_node(n, env.clone())?;
-                        match v {
-                            Value::Boolean(false) => (),
-                            _ => return Ok(v)
-                        }
-                    }
-                    Ok(Value::Boolean(false))
-                },
-                "+" => {
-                    if nodes.len() < 2 {
-                        runtime_error!("Must supply at least two arguments to +: {:?}", nodes);
-                    }
-                    let mut sum = 0;
-                    for n in others.iter() { 
-                        let v = evaluate_node(n, env.clone())?;
-                        match v {
-                            Value::Integer(x) => sum += x,
-                            _ => runtime_error!("Unexpected node during +: {:?}", n)
-                        };
-                    };
-                    Ok(Value::Integer(sum))
-                },
-                "-" => {
-                    if others.len() != 2 {
-                        runtime_error!("Must supply exactly two arguments to -: {:?}", nodes);
-                    }
-                    let v1 = evaluate_node(others.first().unwrap(), env.clone())?;
-                    let v2 = evaluate_node(others.last().unwrap(), env.clone())?;
-                    let mut result = match v1 {
-                        Value::Integer(x) => x,
-                        _ => runtime_error!("Unexpected node during -: {:?}", nodes)
-                    };
-                    result -= match v2 {
-                        Value::Integer(x) => x,
-                        _ => runtime_error!("Unexpected node during -: {:?}", nodes)
-                    };
-                    Ok(Value::Integer(result))
-                },
-                "list" => {
-                    let mut elements = vec![];
-                    for n in nodes[1..].iter() {
-                        let v = evaluate_node(n, env.clone())?;
-                        elements.push(v);
-                    }
-                    Ok(Value::List(elements))
-                },
-                "quote" => {
-                    if nodes.len() != 2 {
-                        runtime_error!("Must supply exactly one argument to quote: {:?}", nodes);
-                    }
-                    quote_node(nodes.get(1).unwrap(), false, env.clone())
-                },
-                "quasiquote" => {
-                    if nodes.len() != 2 {
-                        runtime_error!("Must supply exactly one argument to quasiquote: {:?}", nodes);
-                    }
-                    quote_node(nodes.get(1).unwrap(), true, env.clone())
-                }
-                "error" => {
-                    if nodes.len() != 2 {
-                        runtime_error!("Must suppply exactly one arguments to  error: {:?}", nodes);
-                    }
-                    let e = evaluate_node(nodes.get(1).unwrap(), env.clone())?;
-                    runtime_error!("{}", e);
-                },
-                _ => {
-                    match env.borrow().get(func) {
-                        Some(Value::Procedure(args, body)) => {
-                            if nodes.len() != args.len() + 1 {
-                                runtime_error!("Must supply exactly {} arguments to {}: {:?}", args.len(), func, nodes);
-                            }
-                            //create a new child enviornment for the procedure and define the arguments as local variables
-                            let proc_env = Environment::new_child(env.clone());
-                            for (arg, node) in args.iter().zip(nodes[1..].iter()) { //TODO use nodes split 
-                                let val = evaluate_node(node, env.clone())?;
-                                proc_env.borrow_mut().set(arg.clone(), val);
-                            }
-
-                            Ok(evaluate_nodes(&body, proc_env)?)
-                        },
-                        Some(other) => runtime_error!("Can't execute a non-procedure: {}", other),
-                        None => runtime_error!("Unknown function: {}",func)
-                    }
-                }
+            let maybeFunc = env.borrow().get(func);
+            match maybeFunc {
+                Some(Value::Procedure(f)) => apply_function(&f, &nodes[1..], env.clone()),
+                Some(other) => runtime_error!("Can't execute a non-procedure: {}", other),
+                None => runtime_error!("Unknown function: {}", func)
             }
         },
         _ => {
             runtime_error!("First element in an expression must be an identifier: {:?}", first);
         }
     }
+}
+
+fn apply_function(func: &Function, args: &[Node], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
+    match func {
+        &Function::NativeFunction(nativeFn) => {
+            nativeFn(args, env)
+        },
+        &Function::SchemeFunction(ref argNames, ref body) => {
+            if argNames.len() != args.len() {
+                runtime_error!("Must supply exactly {} arguments to function: {:?}", argNames.len(), args);
+            }
+            // create a new, child environment for the procedure and define the arguments as local variables
+            let procEnv = Environment::new_child(env.clone());
+            for (name, arg) in argNames.iter().zip(args.iter()) {
+                            let val = evaluate_node(arg, env.clone())?;
+                            procEnv.borrow_mut().set(name.clone(), val);
+                        }
+            Ok(evaluate_nodes(body, procEnv)?)
+        }
+    }
+}
+
+
+static PREDEFINED_FUNCTIONS: &'static[(&'static str, Function)] = &[
+    ("define", Function::NativeFunction(native_define)),
+    ("set!", Function::NativeFunction(native_set)),
+    ("lambda", Function::NativeFunction(native_lambda)),
+    ("λ", Function::NativeFunction(native_lambda)),
+    ("if", Function::NativeFunction(native_if)),
+    ("+", Function::NativeFunction(native_plus)),
+    ("-", Function::NativeFunction(native_minus)),
+    ("and", Function::NativeFunction(native_and)),
+    ("or", Function::NativeFunction(native_or)),
+    ("list", Function::NativeFunction(native_list)),
+    ("quote", Function::NativeFunction(native_quote)),
+    ("quasiquote", Function::NativeFunction(native_quasiquote)),
+    ("error", Function::NativeFunction(native_error)),
+];
+
+
+//TODO move common function to lib.scm
+fn native_define(args: &[Node], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
+    if args.len() !=2 {
+        runtime_error!("Must supply exactly two arguments to define: {:?}", args);
+    }
+    let name = match args.first().unwrap() {
+        Node::Identifier(x) => x,
+        _ => runtime_error!("Unexpected node for name in define {:?}", args)};
+    let alreadyDefined = env.borrow().has(name);
+    if !alreadyDefined {
+        let val = evaluate_node(args.last().unwrap(), env.clone())?;
+        env.borrow_mut().set(name.clone(),val);
+        Ok(null!())
+    } else{
+        runtime_error!("Duplicate define: {}", name)
+    }
+}
+
+fn native_set(args: &[Node], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        runtime_error!("Must supply excactly two arguments to set!: {:?}", args);
+    }
+    let name = match args.first().unwrap() {
+        Node::Identifier(x) => x,
+        _ => runtime_error!("Unexpected node for name in set!: {:?}", args)
+    };
+    let alreadyDefined = env.borrow().has(name);
+    if alreadyDefined {
+        let val = evaluate_node(args.get(1).unwrap(), env.clone())?;
+        env.borrow_mut().set(name.clone(), val);
+        Ok(null!())
+    } else {
+        runtime_error!("Can't set! an undefined variable: {}",name)
+    }
+}
+
+fn native_lambda(args: &[Node], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
+    if args.len() < 2 {
+        runtime_error!("Must supply at least two arguments to lambda: {:?}", args)
+    }
+    let argNames = match args.first().unwrap(){
+        Node::List(list) => {
+            let mut names = Vec::new();
+            for item in list.iter(){
+                match item {
+                    Node::Identifier(s) => names.push(s.clone()),
+                    _ => runtime_error!("Unexpected argument  in lambda arguments: {:?}", item)
+                };
+            }
+            names
+        }
+        _ => runtime_error!("Unexpected node for arguments in lambda: {:?}", args)
+    };
+    let expressions = args[1..].to_vec();
+    Ok(Value::Procedure(Function::SchemeFunction(argNames, expressions)))
+}
+
+fn native_if(args: &[Node], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
+    if args.len() != 3 {
+        runtime_error!("Must supply exactly three arguments to if: {:?}", args);
+    }
+    let condition = evaluate_node(args.first().unwrap(), env.clone())?;
+    match condition {
+        Value::Boolean(false) => evaluate_node(args.get(2).unwrap(), env.clone()),
+        _ => evaluate_node(args.get(1).unwrap(), env.clone())
+    }
+}
+
+fn native_and(args: &[Node], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
+    let mut res = Value::Boolean(true);
+    for n in args.iter() {
+        let v = evaluate_node(n, env.clone())?;
+        match v {
+            Value::Boolean(false) => return Ok(v),
+            _ => res = v
+        }
+    }
+    Ok(res)
+}
+
+fn native_or(args: &[Node], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
+    for n in args.iter() {
+        let v = evaluate_node(n, env.clone())?;
+        match v {
+            Value::Boolean(false) => (),
+            _ => return Ok(v)
+        }
+    }
+    Ok(Value::Boolean(false))
+}
+
+fn native_plus(args: &[Node], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
+    if args.len() < 2 {
+        runtime_error!("Must supply at least two arguments to +: {:?}", args);
+    }
+    let mut sum = 0;
+    for n in args[..].iter() {  // todo here slice
+        let v = evaluate_node(n, env.clone())?;
+        match v {
+            Value::Integer(x) => sum += x,
+            _ => runtime_error!("Unexpected node during +: {:?}", n)
+        };
+    };
+    Ok(Value::Integer(sum))
+}
+
+fn native_minus(args: &[Node], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        runtime_error!("Must supply exactly two arguments to -: {:?}", args);
+    }
+    let v1 = evaluate_node(args.first().unwrap(), env.clone())?;
+    let v2 = evaluate_node(args.last().unwrap(), env.clone())?;
+    let mut result = match v1 {
+        Value::Integer(x) => x,
+        _ => runtime_error!("Unexpected node during -: {:?}", args)
+    };
+    result -= match v2 {
+        Value::Integer(x) => x,
+        _ => runtime_error!("Unexpected node during -: {:?}", args)
+    };
+    Ok(Value::Integer(result))
+}
+
+fn native_list(args: &[Node], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
+    let mut elements = vec![];
+    for n in args[..].iter() {
+        let v = evaluate_node(n, env.clone())?;
+        elements.push(v);
+    }
+    Ok(Value::List(elements))
+}
+
+fn native_quote(args: &[Node], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        runtime_error!("Must supply exactly one argument to quote: {:?}", args);
+    }
+    quote_node(args.first().unwrap(), false, env.clone())
+
+}
+
+fn native_quasiquote(args: &[Node], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        runtime_error!("Must supply exactly one argument to quasiquote: {:?}", args);
+    }
+    quote_node(args.first().unwrap(), true, env.clone())
+
+}
+
+fn native_error(args: &[Node], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        runtime_error!("Must suppply exactly one arguments to  error: {:?}", args);
+    }
+    let e = evaluate_node(args.first().unwrap(), env.clone())?;
+    runtime_error!("{}", e);
 }
 
 #[test]
