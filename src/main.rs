@@ -135,6 +135,13 @@ fn test_quoting() {
 
 }
 
+#[test]
+fn test_quasiquoting() {
+    assert_execute!("(quasiquote (1 2))", "(1 2)");
+    assert_execute!("(quasiquote (2 (unquote (+ 1 2)) 4))", "(2 3 4)");
+}
+
+
 
 #[test]
 fn test_bad_syntax() {

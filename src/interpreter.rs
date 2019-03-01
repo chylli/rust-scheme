@@ -124,19 +124,29 @@ fn evaluate_node(node: &Node, env: Rc<RefCell<Environment>>) -> Result<Value, Ru
 }
 
 // TODO create an alias type for environment ? 
-fn quote_node(node: &Node, env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
+fn quote_node(node: &Node, quasi: bool, env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
     match node {
         Node::Identifier(v) => Ok(Value::Symbol(v.clone())),
         Node::Integer(v) => Ok(Value::Integer(*v)),
         Node::Boolean(v) => Ok(Value::Boolean(*v)),
         Node::String(v) => Ok(Value::String(v.clone())),
         Node::List(vec) => {
-            let mut res = vec![];
-            for n in vec.iter() {
-                let v = quote_node(n, env.clone())?;
-                res.push(v);
+            // check if we are unquoting inside a quasiquote
+            if quasi && vec.len() > 0 && *vec.get(0).unwrap() == Node::Identifier("unquote".to_string()){
+                if vec.len() != 2 {
+                    runtime_error!("Must supply exactly one argument to unquote: {:?}", vec);
+                }
+                evaluate_node(vec.get(1).unwrap(), env.clone())
             }
-            Ok(Value::List(res))
+            else {
+                let mut res = vec![];
+                for n in vec.iter() {
+                    let v = quote_node(n, quasi, env.clone())?;
+                    res.push(v);
+                }
+                Ok(Value::List(res))
+            }
+
         }
     }
 }
@@ -273,8 +283,14 @@ fn evaluate_expression(nodes: &Vec<Node>, env: Rc<RefCell<Environment>>) -> Resu
                     if nodes.len() != 2 {
                         runtime_error!("Must supply exactly one argument to quote: {:?}", nodes);
                     }
-                    quote_node(nodes.get(1).unwrap(), env.clone())
+                    quote_node(nodes.get(1).unwrap(), false, env.clone())
                 },
+                "quasiquote" => {
+                    if nodes.len() != 2 {
+                        runtime_error!("Must supply exactly one argument to quasiquote: {:?}", nodes);
+                    }
+                    quote_node(nodes.get(1).unwrap(), true, env.clone())
+                }
                 "error" => {
                     if nodes.len() != 2 {
                         runtime_error!("Must suppply exactly one arguments to  error: {:?}", nodes);
