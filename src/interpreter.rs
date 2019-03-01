@@ -279,6 +279,14 @@ fn evaluate_expression(nodes: &Vec<Node>, env: Rc<RefCell<Environment>>) -> Resu
                     };
                     Ok(Value::Integer(result))
                 },
+                "list" => {
+                    let mut elements = vec![];
+                    for n in nodes[1..].iter() {
+                        let v = evaluate_node(n, env.clone())?;
+                        elements.push(v);
+                    }
+                    Ok(Value::List(elements))
+                },
                 "quote" => {
                     if nodes.len() != 2 {
                         runtime_error!("Must supply exactly one argument to quote: {:?}", nodes);
