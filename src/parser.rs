@@ -40,46 +40,66 @@ struct Parser<'a> {
 impl<'a> Parser<'a> {
     fn parse(tokens: &Vec<Token>) -> Result<Vec<Node>, ParseError> {
         let mut parser = Parser { tokens: tokens.iter() };
-        parser.run(0)
+        parser.parse_nodes(0)
     }
 
-    fn run(&mut self, depth: u64) -> Result<Vec<Node>, ParseError> {
+    fn parse_nodes(&mut self, depth: u64) -> Result<Vec<Node>, ParseError>{
         let mut vec = Vec::new();
         loop {
-            match self.tokens.next() {
-                Some(token) => {
-                    match *token {
-                        Token::OpenParen => {
-                            let inner = self.run(depth + 1)?;
-                            vec.push(Node::List(inner));
-                        },
-                        Token::CloseParen => {
-                            if depth > 0 {
-                                return Ok(vec);
-                            } else {
-                                parse_error!("Unexpected close paren, depth: {}", depth);
-                            }
-                        },
-                        Token::Identifier(ref val) => {
-                            vec.push(Node::Identifier(val.clone()));
-                        },
-                        Token::Integer(ref val) => {
-                            vec.push(Node::Integer(val.clone()));
-                        },
-                        Token::Boolean(ref val) => {
-                            vec.push(Node::Boolean(val.clone()));
-                        },
-                        Token::String(ref val) => {
-                            vec.push(Node::String(val.clone()));
-                        }
-                    };
+            match self.parse_node(depth)? {
+                Some(node) => {
+                    vec.push(node);
                 },
                 None => {
-                    if depth == 0 {
-                        return Ok(vec);
-                    } else {
-                        parse_error!("Unexpected end of input, depth: {}", depth);
+                    return Ok(vec);
+                }
+            }
+        }
+    }
+
+    fn parse_node(&mut self, depth: u64) -> Result<Option<Node>, ParseError> {
+        match self.tokens.next() {
+            Some(token) => {
+                match token {
+                    Token::OpenParen => {
+                        let inner = self.parse_nodes(depth + 1)?;
+                        Ok(Some(Node::List(inner)))
+                    },
+                    Token::CloseParen => {
+                        if depth > 0 {
+                            return Ok(None);
+                        } else {
+                            parse_error!("Unexpected close paren, depth: {}", depth);
+                        }
+                    },
+                    Token::Quote => {
+                        match self.parse_node(depth)? {
+                            Some(inner) => {
+                                let quoted = Node::List(vec![Node::Identifier("quote".to_string()), inner]);
+                                Ok(Some(quoted))
+                            },
+                            None => parse_error!("Missing quoted value, depth: {}", depth)
+                        }
+                    },
+                    Token::Identifier(val) => {
+                        Ok(Some(Node::Identifier(val.clone())))
+                    },
+                    Token::Integer(val) => {
+                        Ok(Some(Node::Integer(val.clone())))
+                    },
+                    Token::Boolean(val) => {
+                        Ok(Some(Node::Boolean(val.clone())))
+                    },
+                    Token::String(val) => {
+                        Ok(Some(Node::String(val.clone())))
                     }
+                }
+            },
+            None => {
+                if depth == 0 {
+                    return Ok(None);
+                } else {
+                    parse_error!("Unexpected end of input, depth: {}", depth);
                 }
             }
         }
@@ -97,6 +117,16 @@ fn test_nested() {
     assert_eq!(parse(&vec![Token::OpenParen, Token::Identifier("+".to_string()), Token::OpenParen, Token::Identifier("+".to_string()), Token::Integer(1), Token::OpenParen, Token::Identifier("+".to_string()), Token::Integer(3), Token::Integer(4), Token::CloseParen, Token::CloseParen, Token::Integer(5), Token::CloseParen]).unwrap(),
                vec![Node::List(vec![Node::Identifier("+".to_string()), Node::List(vec![Node::Identifier("+".to_string()), Node::Integer(1), Node::List(vec![Node::Identifier("+".to_string()), Node::Integer(3), Node::Integer(4)])]), Node::Integer(5)])]);
 }
+
+#[test]
+fn test_quote() {
+    assert_eq!(parse(&vec![Token::Quote, Token::OpenParen, Token::Identifier("a".to_string()), Token::CloseParen]).unwrap(),
+               vec![Node::List(vec![Node::Identifier("quote".to_string()), Node::List(vec![Node::Identifier("a".to_string())])])]);
+    assert_eq!(parse(&vec![Token::OpenParen, Token::Identifier("list".to_string()), Token::Quote, Token::Identifier("a".to_string()), Token::Identifier("b".to_string()), Token::CloseParen]).unwrap(),
+               vec![Node::List(vec![Node::Identifier("list".to_string()), Node::List(vec![Node::Identifier("quote".to_string()), Node::Identifier("a".to_string())]), Node::Identifier("b".to_string())])]);
+}
+
+
 
 #[test]
 fn test_bad_syntax() {

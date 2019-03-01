@@ -16,6 +16,7 @@ macro_rules! parse_error {
 pub enum Token {
     OpenParen,
     CloseParen,
+    Quote,
     Identifier(String),
     Integer(i64),
     Boolean(bool),
@@ -86,6 +87,10 @@ impl<'a> Lexer<'a> {
                             self.tokens.push(Token::CloseParen);
                             self.advance();
                         },
+                        '\'' => {
+                            self.tokens.push(Token::Quote);
+                            self.advance();
+                        }
                         '+' | '-' => {
                             match self.peek() {
                                 Some('0'...'9') => {
@@ -313,6 +318,16 @@ fn test_delimiter_checking() {
     assert_eq!(tokenize("(+ 2 3)\n(+ 1 2-)").err().unwrap().to_string(),
                "SyntaxError: Unexpected character when looking for a delimiter: - (line: 2, column: 7)")
 
+}
+
+#[test]
+fn test_quoting() {
+    assert_eq!(tokenize("'(a)").unwrap(),
+               vec![Token::Quote, Token::OpenParen, Token::Identifier("a".to_string()), Token::CloseParen]);
+    assert_eq!(tokenize("'('a 'b)").unwrap(),
+               vec![Token::Quote, Token::OpenParen, Token::Quote, Token::Identifier("a".to_string()), Token::Quote, Token::Identifier("b".to_string()), Token::CloseParen]);
+    assert_eq!(tokenize("(list 'a b)").unwrap(),
+               vec![Token::OpenParen, Token::Identifier("list".to_string()), Token::Quote, Token::Identifier("a".to_string()), Token::Identifier("b".to_string()), Token::CloseParen]);
 }
 
 #[test]
