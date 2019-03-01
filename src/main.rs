@@ -10,10 +10,13 @@ macro_rules! try_or_err_to_str{
             Err(e) => return Err(e.to_string())
         })
 }
+
+#[cfg(not(test))]
 fn main() {
     run("(+ 2 3)");
 }
 
+#[cfg(not(test))]
 fn run(input: &str) {
     println!("input: \"{:?}\"", input);
     println!("result: \"{:?}\"", execute(input));
