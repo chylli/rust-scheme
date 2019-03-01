@@ -180,24 +180,13 @@ fn quote_node(node: &Node, quasi: bool, env: Rc<RefCell<Environment>>) -> Result
 }
 
 fn evaluate_expression(nodes: &Vec<Node>, env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
-    let (first, others) = match nodes.split_first() {
-        Some(v) => v,
-        None => runtime_error!("Can't evaluate an empty expression: {:?}", nodes)
-    };
-    //TODO refactor it. like :
-    //let func = match first { Node::Identifier(func) => func, _ => runtime_error!}
+    if nodes.len() == 0 {
+        runtime_error!("Can't evaluate an empty expression: {:?}", nodes);
+    }
+    let first = evaluate_node(nodes.first().unwrap(), env.clone())?;
     match first {
-        Node::Identifier(func) => {
-            let maybeFunc = env.borrow().get(func);
-            match maybeFunc {
-                Some(Value::Procedure(f)) => apply_function(&f, &nodes[1..], env.clone()),
-                Some(other) => runtime_error!("Can't execute a non-procedure: {}", other),
-                None => runtime_error!("Unknown function: {}", func)
-            }
-        },
-        _ => {
-            runtime_error!("First element in an expression must be an identifier: {:?}", first);
-        }
+        Value::Procedure(f) => apply_function(&f, &nodes[1..], env.clone()),
+        _ => runtime_error!("First element in an expression must be a procedure: {}", first)
     }
 }
 
