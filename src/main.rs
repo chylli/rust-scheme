@@ -159,3 +159,8 @@ fn test_bad_syntax() {
     assert_execute_fail!("(+ 2 3)\n(+ 1 2-)",
                "SyntaxError: Unexpected character when looking for a delimiter: - (line: 2, column: 7)");
 }
+
+#[test]
+fn test_unicode_identifiers() {
+    assert_execute!("(define ★ 3) (define ♫ 4) (+ ★ ♫)", "7")
+}
