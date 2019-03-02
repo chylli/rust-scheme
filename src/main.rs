@@ -20,7 +20,7 @@ fn main() {
 
 //#[cfg(not(test))]
 fn repl() {
-    println!("Welcome to the RustyScheme REPL!");
+    println!("\nWelcome to the RustyScheme REPL!");
     let reader = io::stdin();
     loop {
         print!("> ");

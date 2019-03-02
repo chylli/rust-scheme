@@ -430,11 +430,11 @@ fn native_apply(args: &[Value], env: Rc<RefCell<Environment>>) -> Result<Value, 
         VProcedure(func) => func,
         _ => runtime_error!("First argument to apply must be a procedure: {:?}", args)
     };
-    let funcArgs = match evaluate_value(args.get(1).unwrap(), env.clone())? {
-        VList(funcArgs) => funcArgs,
+    let func_args = match evaluate_value(args.get(1).unwrap(), env.clone())? {
+        VList(func_args) => func_args,
         _ => runtime_error!("Second argument to apply must be a list of arguments: {:?}", args)
     };
-    apply_function(&func, funcArgs.as_slice(), env.clone())
+    apply_function(&func, func_args.as_slice(), env.clone())
 }
 
 fn native_eval(args: &[Value], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
