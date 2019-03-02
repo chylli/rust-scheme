@@ -23,11 +23,10 @@ pub enum Value {
 // null == empty list
 macro_rules! null { () => (Value::List(Vec::new()))}
 
-// TODO maybe wrong here
 #[derive(Clone)]
 pub enum Function {
     NativeFunction(ValueOperation),
-    SchemeFunction(Vec<String>, Vec<Node>),
+    SchemeFunction(Vec<String>, Vec<Node>, Rc<RefCell<Environment>>),
 }
 
 impl PartialEq for Function {
@@ -38,7 +37,7 @@ impl PartialEq for Function {
 
 
 // type signature for all native functions
-type ValueOperation = fn(&[Node], Rc<RefCell<Environment>>) -> Result<Value, RuntimeError>;
+pub type ValueOperation = fn(&[Node], Rc<RefCell<Environment>>) -> Result<Value, RuntimeError>;
 
 
 impl fmt::Display for Value {
@@ -80,18 +79,22 @@ macro_rules! runtime_error{
     )
 }
 
-struct Environment {
+pub struct Environment {
     parent: Option<Rc<RefCell<Environment>>>,
     values: HashMap<String, Value>,
 }
 
 impl Environment {
     fn new_root() -> Rc<RefCell<Environment>> {
-        let mut env = Environment { parent: None, values: HashMap::new()};
-        for item in PREDEFINED_FUNCTIONS.iter() {
-            let (name, func) = item;
-            env.set(name.to_string(), Value::Procedure(func.clone()));
-        }
+        let env = PREDEFINED_FUNCTIONS.with(|f|{
+            let mut env = Environment { parent: None, values: HashMap::new()};
+            for item in f.iter() {
+                let (name, func) = item;
+                env.set(name.to_string(), Value::Procedure(func.clone()));
+            }
+            env
+        });
+
         Rc::new(RefCell::new(env))
     }
 
@@ -192,26 +195,27 @@ fn evaluate_expression(nodes: &Vec<Node>, env: Rc<RefCell<Environment>>) -> Resu
 
 fn apply_function(func: &Function, args: &[Node], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
     match func {
-        &Function::NativeFunction(nativeFn) => {
-            nativeFn(args, env)
+        Function::NativeFunction(native_fn) => {
+            native_fn(args, env)
         },
-        &Function::SchemeFunction(ref argNames, ref body) => {
-            if argNames.len() != args.len() {
-                runtime_error!("Must supply exactly {} arguments to function: {:?}", argNames.len(), args);
+        Function::SchemeFunction(arg_names, body, func_env) => { //TODO  remove ref?
+            if arg_names.len() != args.len() {
+                runtime_error!("Must supply exactly {} arguments to function: {:?}", arg_names.len(), args);
             }
             // create a new, child environment for the procedure and define the arguments as local variables
-            let procEnv = Environment::new_child(env.clone());
-            for (name, arg) in argNames.iter().zip(args.iter()) {
+            let proc_env = Environment::new_child(func_env.clone());
+            for (name, arg) in arg_names.iter().zip(args.iter()) {
                             let val = evaluate_node(arg, env.clone())?;
-                            procEnv.borrow_mut().set(name.clone(), val);
+                            proc_env.borrow_mut().set(name.clone(), val);
                         }
-            Ok(evaluate_nodes(body, procEnv)?)
+            Ok(evaluate_nodes(body, proc_env)?)
         }
     }
 }
 
-
-static PREDEFINED_FUNCTIONS: &'static[(&'static str, Function)] = &[
+// we cannot use global variable directly because it is not thread safe
+// limit it in thread
+thread_local!(static PREDEFINED_FUNCTIONS: &'static[(&'static str, Function)] = &[
     ("define", Function::NativeFunction(native_define)),
     ("set!", Function::NativeFunction(native_set)),
     ("lambda", Function::NativeFunction(native_lambda)),
@@ -225,7 +229,7 @@ static PREDEFINED_FUNCTIONS: &'static[(&'static str, Function)] = &[
     ("quote", Function::NativeFunction(native_quote)),
     ("quasiquote", Function::NativeFunction(native_quasiquote)),
     ("error", Function::NativeFunction(native_error)),
-];
+]);
 
 
 //TODO move common function to lib.scm
@@ -236,8 +240,8 @@ fn native_define(args: &[Node], env: Rc<RefCell<Environment>>) -> Result<Value, 
     let name = match args.first().unwrap() {
         Node::Identifier(x) => x,
         _ => runtime_error!("Unexpected node for name in define {:?}", args)};
-    let alreadyDefined = env.borrow().has(name);
-    if !alreadyDefined {
+    let already_defined = env.borrow().has(name);
+    if !already_defined {
         let val = evaluate_node(args.last().unwrap(), env.clone())?;
         env.borrow_mut().set(name.clone(),val);
         Ok(null!())
@@ -254,8 +258,8 @@ fn native_set(args: &[Node], env: Rc<RefCell<Environment>>) -> Result<Value, Run
         Node::Identifier(x) => x,
         _ => runtime_error!("Unexpected node for name in set!: {:?}", args)
     };
-    let alreadyDefined = env.borrow().has(name);
-    if alreadyDefined {
+    let already_defined = env.borrow().has(name);
+    if already_defined {
         let val = evaluate_node(args.get(1).unwrap(), env.clone())?;
         env.borrow_mut().set(name.clone(), val);
         Ok(null!())
@@ -268,7 +272,7 @@ fn native_lambda(args: &[Node], env: Rc<RefCell<Environment>>) -> Result<Value, 
     if args.len() < 2 {
         runtime_error!("Must supply at least two arguments to lambda: {:?}", args)
     }
-    let argNames = match args.first().unwrap(){
+    let arg_names = match args.first().unwrap(){
         Node::List(list) => {
             let mut names = Vec::new();
             for item in list.iter(){
@@ -281,8 +285,8 @@ fn native_lambda(args: &[Node], env: Rc<RefCell<Environment>>) -> Result<Value, 
         }
         _ => runtime_error!("Unexpected node for arguments in lambda: {:?}", args)
     };
-    let expressions = args[1..].to_vec();
-    Ok(Value::Procedure(Function::SchemeFunction(argNames, expressions)))
+    let body = args[1..].to_vec();
+    Ok(Value::Procedure(Function::SchemeFunction(arg_names, body, env.clone())))
 }
 
 fn native_if(args: &[Node], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {

@@ -30,12 +30,14 @@ fn execute(input: &str) -> Result<String, String> {
     Ok(format!("{}", result))
 }
 
+#[cfg(test)] // compile only when test
 macro_rules! assert_execute{
     ($src:expr, $res:expr) => (
         assert_eq!(execute($src).unwrap().as_str(), $res)
     )
 }
 
+#[cfg(test)]
 macro_rules! assert_execute_fail{
     ($src:expr, $res:expr) => (
         assert_eq!(execute($src).err().unwrap().as_str(), $res)
