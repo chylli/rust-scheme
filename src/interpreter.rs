@@ -256,6 +256,7 @@ thread_local!(static PREDEFINED_FUNCTIONS: &'static[(&'static str, Function)] = 
     ("quasiquote", NativeFunction(native_quasiquote)),
     ("error", NativeFunction(native_error)),
     ("apply", NativeFunction(native_apply)),
+    ("eval", NativeFunction(native_eval)),
 ]);
 
 
@@ -430,6 +431,15 @@ fn native_apply(args: &[Value], env: Rc<RefCell<Environment>>) -> Result<Value, 
     apply_function(&func, funcArgs.as_slice(), env.clone())
 }
 
+fn native_eval(args: &[Value], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        runtime_error!("Must supply exactly one argument to eval: {:?}", args);
+    }
+
+    // eval is basically just a double-evaluation -- the first evaluate returns the data, and the second evaluate evaluates the data as code
+    let res = evaluate_value(args.get(0).unwrap(), env.clone())?;
+    evaluate_value(&res, env.clone())
+}
 
 #[test]
 fn test_global_variables() {
