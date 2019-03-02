@@ -6,6 +6,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use crate::parser::*;
 use self::Value::*;
+use self::Function::*;
 
 pub fn interpret(nodes: &[Node]) -> Result<Value, RuntimeError> {
     let env = Environment::new_root();
@@ -220,10 +221,10 @@ fn evaluate_expression(values: &Vec<Value>, env: Rc<RefCell<Environment>>) -> Re
 
 fn apply_function(func: &Function, args: &[Value], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
     match func {
-        Function::NativeFunction(native_fn) => {
+        NativeFunction(native_fn) => {
             native_fn(args, env)
         },
-        Function::SchemeFunction(arg_names, body, func_env) => { //TODO  remove ref?
+        SchemeFunction(arg_names, body, func_env) => { //TODO  remove ref?
             if arg_names.len() != args.len() {
                 runtime_error!("Must supply exactly {} arguments to function: {:?}", arg_names.len(), args);
             }
@@ -241,19 +242,20 @@ fn apply_function(func: &Function, args: &[Value], env: Rc<RefCell<Environment>>
 // we cannot use global variable directly because it is not thread safe
 // limit it in thread
 thread_local!(static PREDEFINED_FUNCTIONS: &'static[(&'static str, Function)] = &[
-    ("define", Function::NativeFunction(native_define)),
-    ("set!", Function::NativeFunction(native_set)),
-    ("lambda", Function::NativeFunction(native_lambda)),
-    ("λ", Function::NativeFunction(native_lambda)),
-    ("if", Function::NativeFunction(native_if)),
-    ("+", Function::NativeFunction(native_plus)),
-    ("-", Function::NativeFunction(native_minus)),
-    ("and", Function::NativeFunction(native_and)),
-    ("or", Function::NativeFunction(native_or)),
-    ("list", Function::NativeFunction(native_list)),
-    ("quote", Function::NativeFunction(native_quote)),
-    ("quasiquote", Function::NativeFunction(native_quasiquote)),
-    ("error", Function::NativeFunction(native_error)),
+    ("define", NativeFunction(native_define)),
+    ("set!", NativeFunction(native_set)),
+    ("lambda", NativeFunction(native_lambda)),
+    ("λ", NativeFunction(native_lambda)),
+    ("if", NativeFunction(native_if)),
+    ("+", NativeFunction(native_plus)),
+    ("-", NativeFunction(native_minus)),
+    ("and", NativeFunction(native_and)),
+    ("or", NativeFunction(native_or)),
+    ("list", NativeFunction(native_list)),
+    ("quote", NativeFunction(native_quote)),
+    ("quasiquote", NativeFunction(native_quasiquote)),
+    ("error", NativeFunction(native_error)),
+    ("apply", NativeFunction(native_apply)),
 ]);
 
 
@@ -311,7 +313,7 @@ fn native_lambda(args: &[Value], env: Rc<RefCell<Environment>>) -> Result<Value,
         _ => runtime_error!("Unexpected value for arguments in lambda: {:?}", args)
     };
     let body = args[1..].to_vec();
-    Ok(VProcedure(Function::SchemeFunction(arg_names, body, env.clone())))
+    Ok(VProcedure(SchemeFunction(arg_names, body, env.clone())))
 }
 
 fn native_if(args: &[Value], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
@@ -412,6 +414,22 @@ fn native_error(args: &[Value], env: Rc<RefCell<Environment>>) -> Result<Value, 
     let e = evaluate_value(args.first().unwrap(), env.clone())?;
     runtime_error!("{}", e);
 }
+
+fn native_apply(args: &[Value], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
+    if args.len() != 2 {
+        runtime_error!("Must supply exactly two arguments to apply: {:?}", args);
+    }
+    let func = match evaluate_value(args.get(0).unwrap(), env.clone())? {
+        VProcedure(func) => func,
+        _ => runtime_error!("First argument to apply must be a procedure: {:?}", args)
+    };
+    let funcArgs = match evaluate_value(args.get(1).unwrap(), env.clone())? {
+        VList(funcArgs) => funcArgs,
+        _ => runtime_error!("Second argument to apply must be a list of arguments: {:?}", args)
+    };
+    apply_function(&func, funcArgs.as_slice(), env.clone())
+}
+
 
 #[test]
 fn test_global_variables() {
