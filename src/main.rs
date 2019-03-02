@@ -1,3 +1,5 @@
+use std::io;
+
 mod lexer;
 mod parser;
 mod interpreter;
@@ -11,16 +13,33 @@ macro_rules! try_or_err_to_str{
         })
 }
 
-#[cfg(not(test))]
+//#[cfg(not(test))]
 fn main() {
-    run("(+ 2 3)");
+    repl();
 }
 
-#[cfg(not(test))]
-fn run(input: &str) {
-    println!("input: \"{:?}\"", input);
-    println!("result: \"{:?}\"", execute(input));
+//#[cfg(not(test))]
+fn repl() {
+    println!("Welcome to the RustyScheme REPL!");
+    let reader = io::stdin();
+    loop {
+        print!("> ");
+        let mut input = String::new();
+        match reader.read_line(&mut input) {
+            Ok(n) if n > 0 => {
+                let result = execute(input.as_str());
+                println!("{}", result.unwrap_or_else(|e | e));
+                input.clear();
+            },
+            Ok(_) => return,
+            Err(err) => {
+                println!("Error: {:?}", err.kind());
+                return;
+            }
+        }
+    }
 }
+
 
 fn execute(input: &str) -> Result<String, String> {
     let tokens = try_or_err_to_str!(lexer::tokenize(input));
