@@ -5,18 +5,22 @@ use std::os::raw::c_char;
 #[link(name = "readline")]
 extern "C"{
     fn readline(prompt: *const c_char) -> *const c_char;
+    fn add_history(entry: *const c_char);
 }
 
 fn prompt_for_input(prompt: &str) -> Option<String> {
     let prompt_c_str = CString::new(prompt).unwrap();
-    let raw = unsafe { readline(prompt_c_str.as_ptr()) };
-    let cs = unsafe { CStr::from_ptr(raw) };
+    // wait for enter/CTRL-C/CTRL-D
+    let raw = unsafe{ readline(prompt_c_str.as_ptr())};
+    if raw.is_null(){ return None}
+    let cs =unsafe { CStr::from_ptr(raw)};
+    // parse into String and return
     let string = cs.to_str().unwrap().to_owned();
-    if string.len () == 0 {
-        None
-    } else {
-        Some(string)
+    if string.len() > 0 {
+        //add to shell history
+        unsafe{ add_history(raw)};
     }
+    Some(string)
 }
 
 pub fn start(prompt: &str, f: fn(String) -> Result<String, String>) {
