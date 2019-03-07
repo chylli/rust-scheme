@@ -1,8 +1,8 @@
-use std::io;
-
 mod lexer;
 mod parser;
 mod interpreter;
+
+mod repl;
 
 //TODO https://github.com/rust-lang/rfcs/blob/master/text/0243-trait-based-exception-handling.md  rewrite it to use exception type casting
 macro_rules! try_or_err_to_str{
@@ -15,29 +15,8 @@ macro_rules! try_or_err_to_str{
 
 //#[cfg(not(test))]
 fn main() {
-    repl();
-}
-
-//#[cfg(not(test))]
-fn repl() {
     println!("\nWelcome to the RustyScheme REPL!");
-    let reader = io::stdin();
-    loop {
-        print!("> ");
-        let mut input = String::new();
-        match reader.read_line(&mut input) {
-            Ok(n) if n > 0 => {
-                let result = execute(input.as_str());
-                println!("{}", result.unwrap_or_else(|e | e));
-                input.clear();
-            },
-            Ok(_) => return,
-            Err(err) => {
-                println!("Error: {:?}", err.kind());
-                return;
-            }
-        }
-    }
+    repl::start("> ", |s| execute(s.as_str()));
 }
 
 
