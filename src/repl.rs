@@ -23,7 +23,7 @@ fn prompt_for_input(prompt: &str) -> Option<String> {
     Some(string)
 }
 
-pub fn start(prompt: &str, f: fn(String) -> Result<String, String>) {
+pub fn start<F: Fn(String) -> Result<String, String>>(prompt: &str, f: F ) {
     loop {
         match prompt_for_input(prompt) {
             Some(input) => {

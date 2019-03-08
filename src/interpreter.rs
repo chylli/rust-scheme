@@ -8,10 +8,21 @@ use crate::parser::*;
 use self::Value::*;
 use self::Function::*;
 
-pub fn interpret(nodes: &[Node]) -> Result<Value, RuntimeError> {
-    let env = Environment::new_root();
-    let values = Value::from_nodes(nodes);
-    evaluate_values(&values, env)
+#[derive(Clone)]
+pub struct Interpreter {
+    root: Rc<RefCell<Environment>>
+}
+
+impl Interpreter {
+    pub fn new() -> Interpreter {
+        Interpreter { root: Environment::new_root()}
+    }
+
+    pub fn run(&self, nodes: &[Node]) -> Result<Value, RuntimeError>{
+        let values = Value::from_nodes(nodes);
+        evaluate_values(&values, self.root.clone())
+
+    }
 }
 
 #[derive(PartialEq, Clone)]
@@ -449,13 +460,13 @@ fn native_eval(args: &[Value], env: Rc<RefCell<Environment>>) -> Result<Value, R
 
 #[test]
 fn test_global_variables() {
-    assert_eq!(interpret(&[NList(vec![NIdentifier("define".to_string()), NIdentifier("x".to_string()), NInteger(2)]), NList(vec![NIdentifier("+".to_string()), NIdentifier("x".to_string()), NIdentifier("x".to_string()), NIdentifier("x".to_string())])]).unwrap(),
+    assert_eq!(Interpreter::new().run(&[NList(vec![NIdentifier("define".to_string()), NIdentifier("x".to_string()), NInteger(2)]), NList(vec![NIdentifier("+".to_string()), NIdentifier("x".to_string()), NIdentifier("x".to_string()), NIdentifier("x".to_string())])]).unwrap(),
                VInteger(6));
 }
 
 #[test]
 fn test_global_function_definition() {
-    assert_eq!(interpret(&vec![NList(vec![NIdentifier("define".to_string()), NIdentifier("double".to_string()), NList(vec![NIdentifier("lambda".to_string()), NList(vec![NIdentifier("x".to_string())]), NList(vec![NIdentifier("+".to_string()), NIdentifier("x".to_string()), NIdentifier("x".to_string())])])]), NList(vec![NIdentifier("double".to_string()), NInteger(8)])]).unwrap(),
+    assert_eq!(Interpreter::new().run(&vec![NList(vec![NIdentifier("define".to_string()), NIdentifier("double".to_string()), NList(vec![NIdentifier("lambda".to_string()), NList(vec![NIdentifier("x".to_string())]), NList(vec![NIdentifier("+".to_string()), NIdentifier("x".to_string()), NIdentifier("x".to_string())])])]), NList(vec![NIdentifier("double".to_string()), NInteger(8)])]).unwrap(),
                VInteger(16));
 }
 
