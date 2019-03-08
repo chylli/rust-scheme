@@ -243,6 +243,7 @@ fn apply_function(func: &Function, args: &[Value], env: Rc<RefCell<Environment>>
     }
 }
 
+// TODO split them to special form and common lib form, and move some common lib form into lib.scm
 // we cannot use global variable directly because it is not thread safe
 // limit it in thread
 thread_local!(static PREDEFINED_FUNCTIONS: &'static[(&'static str, Function)] = &[
@@ -261,6 +262,8 @@ thread_local!(static PREDEFINED_FUNCTIONS: &'static[(&'static str, Function)] = 
     ("error", NativeFunction(native_error)),
     ("apply", NativeFunction(native_apply)),
     ("eval", NativeFunction(native_eval)),
+    ("write", NativeFunction(native_write)),
+    ("newline", NativeFunction(native_newline)),
 ]);
 
 
@@ -434,6 +437,23 @@ fn native_eval(args: &[Value], env: Rc<RefCell<Environment>>) -> Result<Value, R
     // eval is basically just a double-evaluation -- the first evaluate returns the data using the local envirnoment, and the second evaluate evaluates the data as code using the global environment
     let res = evaluate_value(args.get(0).unwrap(), env.clone())?;
     evaluate_value(&res, Environment::get_root(env))
+}
+
+fn native_write(args: &[Value], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
+    if args.len() != 1 {
+        runtime_error!("Must supply exactly one argument to write: {:?}", args);
+    }
+    let val = evaluate_value(args.get(0).unwrap(), env.clone())?;
+    print!("{}", val);
+    Ok(null!())
+}
+
+fn native_newline(args: &[Value], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
+    if args.len() != 0 {
+        runtime_error!("Must supply exactly zero arguments to newline: {:?}", args);
+    }
+    println!("");
+    Ok(null!())
 }
 
 #[test]
