@@ -37,11 +37,7 @@ pub enum Value {
 
 impl Value {
     fn from_nodes(nodes: &[Node]) -> Vec<Value> { //try to rewrite it as Value::from ?
-        let mut values = vec![];
-        for node in nodes.iter() {
-            values.push(Value::from_node(node));
-        }
-        values
+        nodes.iter().map(Value::from_node).collect()
     }
 
     fn from_node(node: &Node) -> Value {
@@ -167,11 +163,7 @@ impl Environment {
 }
 
 fn evaluate_values(values: &[Value], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
-    let mut result = null!();
-    for value in values.iter() {
-        result = evaluate_value(value, env.clone())?;
-    };
-    Ok(result)
+    values.iter().map(|v| evaluate_value(v, env.clone())).collect::<Result<Vec<_>, _>>()?.last().cloned().map_or(Ok(null!()), |v| Ok(v))
 }
 
 fn evaluate_value(value: &Value, env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
@@ -212,12 +204,7 @@ fn quote_value(value: &Value, quasi: bool, env: Rc<RefCell<Environment>>) -> Res
                 evaluate_value(vec.get(1).unwrap(), env.clone())
             }
             else {
-                let mut res = vec![];
-                for n in vec.iter() {
-                    let v = quote_value(n, quasi, env.clone())?;
-                    res.push(v);
-                }
-                Ok(VList(res))
+                vec.iter().map(|v| quote_value(v, quasi, env.clone())).collect::<Result<_, _>>().map(|v| VList(v))
             }
 
         },
@@ -319,14 +306,10 @@ fn native_lambda(args: &[Value], env: Rc<RefCell<Environment>>) -> Result<Value,
     }
     let arg_names = match args.first().unwrap(){
         VList(list) => {
-            let mut names = Vec::new();
-            for item in list.iter(){
-                match item {
-                    VSymbol(s) => names.push(s.clone()),
-                    _ => runtime_error!("Unexpected argument in lambda arguments: {:?}", item)
-                };
-            }
-            names
+            list.iter().map(|i| match i {
+                VSymbol(s) => Ok(s.clone()),
+                _ => runtime_error!("Unexpected argument in lambda arguments: {:?}", i)
+            }).collect::<Result<_, _>>()?
         }
         _ => runtime_error!("Unexpected value for arguments in lambda: {:?}", args)
     };
@@ -401,12 +384,7 @@ fn native_minus(args: &[Value], env: Rc<RefCell<Environment>>) -> Result<Value, 
 }
 
 fn native_list(args: &[Value], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
-    let mut elements = vec![];
-    for n in args[..].iter() {
-        let v = evaluate_value(n, env.clone())?;
-        elements.push(v);
-    }
-    Ok(VList(elements))
+    Ok(VList(args.iter().map(|n| evaluate_value(n, env.clone())).collect::<Result<_, _>>()?))
 }
 
 fn native_quote(args: &[Value], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
