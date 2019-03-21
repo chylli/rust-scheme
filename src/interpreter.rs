@@ -269,15 +269,38 @@ thread_local!(static PREDEFINED_FUNCTIONS: &'static[(&'static str, Function)] = 
 
 //TODO move common function to lib.scm
 fn native_define(args: &[Value], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
-    if args.len() !=2 {
-        runtime_error!("Must supply exactly two arguments to define: {:?}", args);
+    if args.len() < 2 {
+        runtime_error!("Must supply at least two arguments to define: {:?}", args);
     }
-    let name = match args.first().unwrap() {
-        VSymbol(x) => x,
-        _ => runtime_error!("Unexpected value for name in define {:?}", args)};
+    let (name, val) = match *args.get(0).unwrap() {
+        VSymbol(ref name) => {
+            let val = evaluate_value(args.get(1).unwrap(), env.clone())?;
+            (name, val)
+        },
+        VList(ref list) => {
+            // if a list is the second argument, it's shortcut for defining a procedure
+            // (define (<name> <args>) <body>) == (define <name> (lambda (<args>) <body>)
+            if list.len() < 1 {
+                runtime_error!("Must supply at least one argument in list part of define: {:?}", list);
+            }
+            match list.get(0).unwrap() {
+                VSymbol(name) => {
+                    let arg_names = list[1..].iter().map(|i| match *i {
+                        VSymbol(ref s) => Ok(s.clone()),
+                        _ => runtime_error!("Unexpected argument in define arguments: {}", i)
+                    }).collect::<Result<_,_>>()?;
+                    let body = args[1..].to_vec();
+                    let val = VProcedure(SchemeFunction(arg_names, body, env.clone()));
+                    (name, val)
+                },
+                _ => runtime_error!("Must supply a symbol in list part of define: {:?}", list)
+            }
+        },
+        _ => runtime_error!("Unexpected value for name in define {:?}", args)
+    };
+
     let already_defined = env.borrow().has(name);
     if !already_defined {
-        let val = evaluate_value(args.last().unwrap(), env.clone())?;
         env.borrow_mut().set(name.clone(),val);
         Ok(null!())
     } else{
