@@ -448,7 +448,7 @@ fn native_write(args: &[Value], env: Rc<RefCell<Environment>>) -> Result<Value, 
     Ok(null!())
 }
 
-fn native_newline(args: &[Value], env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
+fn native_newline(args: &[Value], _env: Rc<RefCell<Environment>>) -> Result<Value, RuntimeError> {
     if args.len() != 0 {
         runtime_error!("Must supply exactly zero arguments to newline: {:?}", args);
     }

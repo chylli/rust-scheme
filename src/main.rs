@@ -1,3 +1,8 @@
+use std::fs::File;
+use std::env;
+use std::path::Path;
+use std::io::Read;
+
 mod lexer;
 mod parser;
 mod interpreter;
@@ -15,6 +20,23 @@ macro_rules! try_or_err_to_str{
 
 //#[cfg(not(test))]
 fn main() {
+    let args: Vec<String> = env::args().collect();
+    match args.len() {
+        1 => start_repl(),
+        2 => run_file(&args[1]),
+        _ => panic!("Your must provide 0 or 1 arguments to RustyScheme: {:?}", args)
+    }
+}
+
+fn run_file(filename: &String) {
+    let path = Path::new(filename);
+    let mut file = File::open(&path).unwrap();
+    let mut content = String::new();
+    file.read_to_string(&mut content).unwrap();
+    let ctx = interpreter::Interpreter::new();
+    execute(content.as_str(), ctx).unwrap();
+}
+fn start_repl() {
     let ctx = interpreter::Interpreter::new();
     println!("\nWelcome to the RustyScheme REPL!");
     repl::start("> ", |s| execute(s.as_str(), ctx.clone())); // why clone ?
